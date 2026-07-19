@@ -1,0 +1,223 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>SagaForge: event-driven sagas for Rails</title>
+  <meta name="description" content="A saga engine for Rails on ActiveJob: one Ruby file per workflow, a durable event ledger, out-of-order webhooks that heal themselves, and automatic rollback of committed steps when something downstream fails.">
+  <link rel="icon" href="favicon.svg" type="image/svg+xml">
+  <meta name="theme-color" content="#fdfdfc" media="(prefers-color-scheme: light)">
+  <meta name="theme-color" content="#101317" media="(prefers-color-scheme: dark)">
+  <meta property="og:type" content="website">
+  <meta property="og:title" content="SagaForge: event-driven sagas for Rails">
+  <meta property="og:description" content="Your checkout flow works until the settlement webhook lands early, lands twice, or payment fails after inventory was already reserved. SagaForge is the saga engine for workflows the outside world drives.">
+  <meta property="og:url" content="https://radioactive-labs.github.io/saga_forge/">
+  <meta name="twitter:card" content="summary">
+  <meta name="twitter:title" content="SagaForge: event-driven sagas for Rails">
+  <meta name="twitter:description" content="Your checkout flow works until the settlement webhook lands early, lands twice, or payment fails after inventory was already reserved. SagaForge is the saga engine for workflows the outside world drives.">
+  <script>
+    // Restore the saved theme before first paint, so there's no flash on refresh.
+    (function () {
+      try {
+        var t = localStorage.getItem("saga_forge-theme");
+        if (t) document.documentElement.setAttribute("data-theme", t);
+      } catch (e) {}
+    })();
+  </script>
+  <style>
+    :root {
+      --bg:    #fdfdfc;
+      --fg:    #1c1f24;
+      --soft:  #5b636e;
+      --link:  #4650c8;
+      --code-bg: #f2f3f5;
+      --rule:  #e3e5e8;
+      --mono: ui-monospace, "SF Mono", "JetBrains Mono", Menlo, Consolas, monospace;
+      --sans: system-ui, -apple-system, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    }
+    @media (prefers-color-scheme: dark) {
+      :root {
+        --bg: #101317; --fg: #d9dde3; --soft: #8b93a0; --link: #97a0f5;
+        --code-bg: #191d23; --rule: #262b32;
+      }
+    }
+    :root[data-theme="light"] { --bg:#fdfdfc; --fg:#1c1f24; --soft:#5b636e; --link:#4650c8; --code-bg:#f2f3f5; --rule:#e3e5e8; }
+    :root[data-theme="dark"]  { --bg:#101317; --fg:#d9dde3; --soft:#8b93a0; --link:#97a0f5; --code-bg:#191d23; --rule:#262b32; }
+
+    * { box-sizing: border-box; }
+    body {
+      margin: 0;
+      background: var(--bg);
+      color: var(--fg);
+      font-family: var(--sans);
+      font-size: 18px;
+      line-height: 1.62;
+      -webkit-font-smoothing: antialiased;
+    }
+    .page { max-width: 48rem; margin: 0 auto; padding: 2.75rem 1.5rem 5rem; position: relative; }
+
+    .theme-toggle {
+      position: absolute; top: 1.5rem; right: 1.5rem;
+      font-family: var(--mono); font-size: 0.74rem; color: var(--soft);
+      background: none; border: 0; cursor: pointer; padding: 0.2rem;
+      text-decoration: underline; text-underline-offset: 2px;
+    }
+    .theme-toggle:hover { color: var(--link); }
+
+    h1 {
+      font-family: var(--mono);
+      font-size: 1.5rem;
+      font-weight: 600;
+      letter-spacing: -0.01em;
+      margin: 0 0 1.4rem;
+    }
+    h2 {
+      font-size: 1.02rem;
+      font-weight: 600;
+      margin: 2.8rem 0 0.9rem;
+      padding-bottom: 0.4rem;
+      border-bottom: 1px solid var(--rule);
+      color: var(--fg);
+    }
+    p { margin: 0 0 1.1rem; }
+    .lede { font-size: 1.12rem; }
+    .sub { color: var(--soft); }
+    a { color: var(--link); text-decoration: underline; text-underline-offset: 2px; text-decoration-thickness: 1px; }
+    a:hover { text-decoration-thickness: 2px; }
+
+    .badges { display: flex; flex-wrap: wrap; gap: 0.4rem; margin: 0.2rem 0 1.8rem; align-items: center; }
+    .badges a { display: inline-flex; text-decoration: none; }
+    .badges img { height: 20px; display: block; }
+
+    code {
+      font-family: var(--mono);
+      font-size: 0.86em;
+      background: var(--code-bg);
+      padding: 0.1em 0.35em;
+      border-radius: 3px;
+    }
+    pre {
+      background: var(--code-bg);
+      border: 1px solid var(--rule);
+      border-radius: 4px;
+      padding: 0.95rem 1.1rem;
+      overflow-x: auto;
+      margin: 0 0 1.1rem;
+      line-height: 1.55;
+    }
+    pre code { background: none; padding: 0; font-size: 0.8rem; }
+    .cmt { color: var(--soft); }
+
+    ul { margin: 0 0 1.1rem; padding-left: 1.2rem; }
+    li { margin-bottom: 0.5rem; }
+    li b { font-weight: 600; }
+
+    .links { list-style: none; padding: 0; margin: 0.4rem 0 0; }
+    .links li { margin-bottom: 0.55rem; display: flex; gap: 0.7rem; }
+    .links .what { color: var(--soft); min-width: 6.5rem; display: inline-block; }
+
+    footer {
+      margin-top: 3.2rem; padding-top: 1.1rem; border-top: 1px solid var(--rule);
+      font-family: var(--mono); font-size: 0.78rem; color: var(--soft);
+    }
+    :focus-visible { outline: 2px solid var(--link); outline-offset: 2px; }
+  </style>
+</head>
+<body>
+  <div class="page">
+    <button id="theme-toggle" class="theme-toggle" type="button">dark mode</button>
+    <h1>SagaForge</h1>
+
+    <p class="lede">Your checkout flow works until the settlement webhook lands early, lands twice, or payment fails after inventory was already reserved. SagaForge is the saga engine for workflows the outside world drives.</p>
+
+    <p class="sub">SagaForge is a gem over your existing database and ActiveJob backend: two tables, a handful of jobs, no separate server. Every incoming event is persisted before it is processed, early arrivals park until the saga is ready, each step commits atomically, and when a step declares failure the steps that already committed unwind in reverse. Works with any ActiveJob backend on Rails 7.1+.</p>
+
+    <p class="badges">
+      <a href="https://github.com/radioactive-labs/saga_forge/actions/workflows/main.yml"><img alt="CI" src="https://github.com/radioactive-labs/saga_forge/actions/workflows/main.yml/badge.svg"></a>
+      <a href="https://opensource.org/licenses/MIT"><img alt="License: MIT" src="https://img.shields.io/badge/License-MIT-yellow.svg"></a>
+    </p>
+
+    <h2>Install</h2>
+    <pre><code><span class="cmt"># Gemfile</span>
+gem "saga_forge"</code></pre>
+    <pre><code>bundle install
+rails g saga_forge:install
+rails db:migrate</code></pre>
+    <p class="sub">Want SagaForge's tables in their own database? <code>rails g saga_forge:install --database=saga_forge</code>.</p>
+
+    <h2>The 30-second tour</h2>
+    <p>A saga is one file that reads top to bottom. States exist only where the next fact comes from outside; everything else chains inline:</p>
+    <pre><code>class OrderFulfillmentSaga &lt; SagaForge::Base
+  correlate_by :order_id
+
+  <span class="cmt"># Create a PENDING payment intent; settlement arrives later, by webhook.</span>
+  start_with :order_placed, compensate: :cancel_payment do |saga, payload|
+    saga.context[:items] = payload[:items]
+    intent = PaymentGateway.create_intent(payload[:total], idempotency_key: saga.correlation_id)
+    saga.context[:intent_id] = intent.id
+  end                                          <span class="cmt"># falls through to :awaiting_settlement</span>
+
+  during :awaiting_settlement, on: :payment_settled, compensate: :release_inventory do |saga, _|
+    Warehouse.reserve(saga.context[:items], key: saga.correlation_id)
+    Shipping.dispatch(saga.correlation_id)
+  end                                          <span class="cmt"># falls through to :completed</span>
+
+  during :awaiting_settlement, on: :payment_failed do |saga, payload|
+    saga.fail! reason: payload[:decline_code]  <span class="cmt"># unwinds committed steps, in reverse</span>
+  end
+
+  finish_with :completed
+
+  compensation(:cancel_payment)    { |saga| <span class="cmt"># cancel or refund, guarded by context</span> }
+  compensation(:release_inventory) { |saga| <span class="cmt"># put the stock back</span> }
+end
+
+<span class="cmt"># The world talks to it by publishing facts, e.g. from a webhook controller:</span>
+SagaForge.publish :payment_settled, event_id: webhook.id, order_id: 42</code></pre>
+    <p class="sub">The webhook can arrive before the saga is ready (it parks and re-delivers itself), twice (the <code>event_id</code> makes the duplicate a no-op), or as a failure (every committed step unwinds, last first, using the context each step saved).</p>
+
+    <h2>What you get</h2>
+    <ul>
+      <li><b>One file per workflow.</b> Six macros, plain Ruby branching, and a chain built from file order. No consumer classes, no command buses, no held locks while your code runs.</li>
+      <li><b>A durable event ledger.</b> Every event persists before any job touches it, dedupes on the producer's <code>event_id</code>, and remains queryable afterward as the audit trail.</li>
+      <li><b>Out-of-order arrival heals itself.</b> Early events park and re-deliver when the saga reaches their state, so processing order stays deterministic no matter what the network did.</li>
+      <li><b>Automatic rollback.</b> What is owed is derived from what actually committed and runs in reverse, each compensation reading the context its forward step saved.</li>
+      <li><b>Retries with per-error budgets.</b> A rate limit can retry ten times while a decline fails fast, tracked on the event row where you can see it.</li>
+      <li><b>Poison-pill isolation.</b> A failing event halts its one saga instance, not the system. <code>suspended</code> lists the stuck ones; <code>resume!</code> re-fires after the fix.</li>
+      <li><b>Publish on commit.</b> Events a step publishes surface only if the step commits, so a rolled-back step can never trigger downstream work.</li>
+      <li><b>Multi-database support.</b> One flag at install puts SagaForge's tables in their own database.</li>
+    </ul>
+
+    <h2>SagaForge or ChronoForge?</h2>
+    <p class="sub">They are siblings. If the workflow mostly waits for the outside world and needs an unwind story, it is a saga. If it is a sequence of steps your own code drives and should survive crashes and retries, it is a <a href="https://radioactive-labs.github.io/chrono_forge/">ChronoForge</a> workflow. They compose: a saga step that needs resumable sub-steps kicks off a ChronoForge workflow and parks on its completion event.</p>
+
+    <h2>Documentation</h2>
+    <ul class="links">
+      <li><span class="what">Guide &amp; API</span><a href="https://github.com/radioactive-labs/saga_forge#readme">github.com/radioactive-labs/saga_forge</a></li>
+      <li><span class="what">Sibling</span><a href="https://radioactive-labs.github.io/chrono_forge/">ChronoForge, durable workflows for Rails</a></li>
+    </ul>
+
+    <footer>MIT License · Radioactive Labs</footer>
+  </div>
+
+  <script>
+    (function () {
+      var root = document.documentElement;
+      var btn = document.getElementById("theme-toggle");
+      function effective() {
+        var t = root.getAttribute("data-theme");
+        if (t) return t;
+        return window.matchMedia("(prefers-color-scheme: dark)").matches ? "dark" : "light";
+      }
+      function label() { btn.textContent = (effective() === "dark" ? "light" : "dark") + " mode"; }
+      btn.addEventListener("click", function () {
+        var next = effective() === "dark" ? "light" : "dark";
+        root.setAttribute("data-theme", next);
+        try { localStorage.setItem("saga_forge-theme", next); } catch (e) {}
+        label();
+      });
+      label();
+    })();
+  </script>
+</body>
+</html>
