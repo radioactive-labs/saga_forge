@@ -21,7 +21,10 @@ module SagaForge
         @asset_digests[file] ||= begin
           require "digest"
           Digest::SHA256.file(Engine.root.join(ASSET_ROOT, file)).hexdigest[0, 12]
-        rescue
+        rescue Errno::ENOENT
+          VERSION
+        rescue => e
+          Rails.logger.warn { "[saga_forge-dashboard] asset_digest(#{file}) failed: #{e.class}: #{e.message}" } if defined?(Rails) && Rails.logger
           VERSION
         end
       end
