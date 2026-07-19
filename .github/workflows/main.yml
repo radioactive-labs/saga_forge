@@ -1,0 +1,88 @@
+name: Ruby
+
+on:
+  push:
+    branches:
+      - main
+
+  pull_request:
+
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    name: Ruby ${{ matrix.ruby }} / ${{ matrix.appraisal }} (sqlite)
+    strategy:
+      fail-fast: false
+      matrix:
+        ruby:
+          - "3.2"
+          - "3.3"
+          - "3.4"
+        appraisal:
+          - rails-7.1
+          - rails-8.0
+          - rails-8.1
+
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: ${{ matrix.ruby }}
+          bundler-cache: true
+      - name: Generate Appraisal gemfiles
+        run: bundle exec appraisal install
+      - name: Run tests (${{ matrix.appraisal }})
+        run: bundle exec appraisal ${{ matrix.appraisal }} rake test
+
+  lint:
+    runs-on: ubuntu-latest
+    name: Standard (style)
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+      - name: Run standard
+        run: bundle exec rake standard
+
+  postgres:
+    runs-on: ubuntu-latest
+    name: PostgreSQL (full suite)
+    services:
+      postgres:
+        image: postgres:16
+        env:
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: saga_forge_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+    env:
+      DB_ADAPTER: postgresql
+      DB_DATABASE: saga_forge_test
+      DB_HOST: localhost
+      DB_PORT: "5432"
+      DB_USERNAME: postgres
+      DB_PASSWORD: postgres
+      BUNDLE_WITH: postgres
+    steps:
+      - uses: actions/checkout@v4
+      - name: Set up Ruby
+        uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: "3.2"
+          bundler-cache: true
+      # Runs the full suite against Postgres, not just a migration check: this
+      # is the only lane that exercises the publisher's savepoint dedup for a
+      # duplicate INSERT inside an ambient transaction (Postgres aborts the
+      # whole transaction on a statement error; SQLite doesn't) and the
+      # jsonb `update_all(retry_budgets: {})` cast in State#resume!.
+      - name: Run full suite (PostgreSQL)
+        run: bundle exec rake test

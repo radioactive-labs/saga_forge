@@ -26,6 +26,7 @@
 - Staged publish `event_id`s are deterministic: `"staged:#{source_event_id}:#{seq}"` (forward blocks), `"staged:comp:#{state_id}:#{comp_name}:#{seq}"` (compensations); `saga_class` disambiguates recipients under the compound index.
 - Compensation failure after exhausting the tolerant policy: recorded in `context["__saga_forge"]["comp_error"]`, logged with `Rails.logger.error { }`, saga stays `:compensating`; operator re-runs `compensate!` after fixing (spec leaves this surface open — see §A.4 sharp edge).
 - `stay` inside `start_with` raises `SagaForge::Error` (there is no start state to remain in).
+- **HashWithIndifferentAccess aliasing (discovered in Task 6):** `(context["__saga_forge"] ||= {})` is a BUG against HWIA — `[]=` stores a converted copy, but the `||=` expression evaluates to the original literal, so mutations through the alias never reach `context`. Everywhere the plan's snippets (Tasks 8, 9, 11) mutate `context["__saga_forge"]`, use read-merge-reassign instead: `meta = (context["__saga_forge"] || {}).merge(...); context["__saga_forge"] = meta`.
 
 ---
 
@@ -473,7 +474,7 @@ class CreateSagaForgeTables < ActiveRecord::Migration[7.1]
       t.string :event_id, null: false
       t.string :saga_class, null: false
       t.string :correlation_id, null: false
-      t.references :saga_forge_state, type: fk_type, foreign_key: true, index: false
+      t.references :saga_forge_state, type: fk_type, foreign_key: {to_table: :saga_forge_states}, index: false
       t.string :event_name, null: false
       t.integer :status, null: false, default: 0
       t.integer :stall_count, null: false, default: 0
@@ -2175,7 +2176,7 @@ module SagaForge
       if backoff
         [:retry, backoff]
       else
-        meta["comp_error"] = {"name" => name.to_s, "class" => error.class.name, "message" => error.message.to_s.truncate(5_000)}
+        meta["comp_error"] = {"name" => name.to_s, "class" => error.class.name, "message" => SagaForge.safe_error_message(error.message, 5_000)}
         state.update!(context: state.context)
         Rails.logger.error { "[saga_forge] compensation #{name} exhausted for #{state.saga_class}##{state.correlation_id}: #{error.class}: #{error.message}" }
         [:done] # stuck in :compensating; operator re-runs compensate! after a fix
@@ -2525,7 +2526,9 @@ git commit -m "feat: version-fenced timeouts with fail! and branch actions"
 - Test: `test/sweeper_test.rb`
 
 **Acceptance Criteria:**
-- [ ] `SweeperJob` re-enqueues `pending` rows older than `sweep_interval` (batch via `find_each`); processed/stalled/failed untouched
+- [ ] `SweeperJob` re-enqueues `pending` rows older than `sweep_interval` (batch via `find_each`); processed/failed untouched
+- [ ] **(added after Task 6 review)** `SweeperJob` also closes the two post-commit crash holes: (a) sagas sitting in `:compensating` older than `sweep_interval` get `CompensationJob.perform_later` re-enqueued (the fail!→handoff is otherwise a once-only hint); (b) `stalled` events whose saga's `current_state` now equals their registered state get re-delivered (crash between commit and `redeliver_parked` otherwise strands them — the saga is waiting on exactly that event)
+- [ ] **(added after Task 8 review)** The `:compensating` re-enqueue in (a) MUST skip sagas whose `context["__saga_forge"]["comp_error"]` is present — those exhausted their tolerant retries and are operator-recovery-only (`compensate!` after a code fix); blind re-enqueue would re-run the broken block once per sweep forever and grow `comp_attempts` unboundedly
 - [ ] `RetentionJob` deletes `processed` events older than `retention` whose saga is in a terminal state; keeps everything for active sagas (compensation derives from history)
 - [ ] README documents Solid Queue `recurring.yml` scheduling for both (written in Task 13)
 
@@ -2974,6 +2977,7 @@ git commit -m "feat: install and migrations generators with --database multi-DB 
 
 **Acceptance Criteria:**
 - [ ] Ghost-cascade impossibility: a block that stages a publish then raises never surfaces the staged event, across every chaotic_job failure permutation
+- [ ] **(added after Task 6 review)** Post-commit crash injection: crash between commit and CompensationJob enqueue → sweeper recovers the `:compensating` saga; crash between commit and `redeliver_parked` → sweeper re-delivers the matching stalled event
 - [ ] Exactly-once: crash-after-commit re-delivery does not double-insert staged rows or re-run the block's committed effects (event stays `processed`)
 - [ ] Version race: two concurrent runners for one instance — one commits, one conflicts and retries clean
 - [ ] CI: sqlite + postgres lanes, `bundle exec rake`
@@ -3031,7 +3035,9 @@ end
 
 Also add a chaotic_job scenario run if its API fits ActiveJob at this version (`run_scenario(job, glitch: ...)`) — treat as bonus coverage, keep deterministic tests above as the required ones.
 
-- [ ] **Step 2: CI + Appraisals** — copy chrono_forge's `.github/workflows/main.yml` structure: job 1 `bundle exec appraisal rake test` on ruby 3.2/3.3 sqlite; job 2 postgres service with `DB_ADAPTER=postgresql`. `Appraisals` file with `rails-7.1` and `rails-8.0`. Extend `test/internal/config/database.yml` with a postgresql variant keyed on `DB_ADAPTER` env (copy chrono_forge's `test/internal/config/database.yml` approach verbatim).
+- [ ] **Step 2: CI + Appraisals** — copy chrono_forge's `.github/workflows/main.yml` structure. The PG lane MUST run the publisher dedup tests (duplicate `event_id` publish inside an ambient transaction must not poison the caller's transaction — Postgres aborts transactions on statement error; the savepoint in `Publisher#insert_row` exists for exactly this and is unverifiable on sqlite). job 1 `bundle exec appraisal rake test` on ruby 3.2/3.3 sqlite; job 2 postgres service with `DB_ADAPTER=postgresql`. `Appraisals` file with `rails-7.1` and `rails-8.0`. Extend `test/internal/config/database.yml` with a postgresql variant keyed on `DB_ADAPTER` env (copy chrono_forge's `test/internal/config/database.yml` approach verbatim).
+
+- [ ] **Step 2b: Solid Queue concurrency-key coverage** — add `solid_queue` as a dev dependency (Gemfile) and unit-test `ExecutionJob`'s `limits_concurrency` key lambda (found row → `"SagaLock:<class>:<corr>"`, missing row → `"SagaLock:none"`). Deferred from Task 5 because the constant isn't defined in the base test env.
 
 - [ ] **Step 3: README** — hero example (spec §A.1 OrderFulfillmentSaga), quick start (`bundle add saga_forge`, `rails g saga_forge:install`, multi-DB flag), publish contract (`SagaForge.publish` vs `saga.publish` — one paragraph each), scheduling:
 
@@ -3045,7 +3051,7 @@ saga_forge_retention:
   schedule: every day at 4am
 ```
 
-operator API table (§A.7), and a link to `docs/superpowers/specs/2026-07-19-saga-forge-design.md`.
+operator API table (§A.7), a link to `docs/superpowers/specs/2026-07-19-saga-forge-design.md`, and an operations note that expired-timer jobs are expected queue litter (every handled event in a `timeout:` state re-arms a fresh timer; stale ones fire dead and discard via the version fence — bounded by tick frequency × timeout duration).
 
 - [ ] **Step 4: Full run and commit**
 
@@ -3069,6 +3075,10 @@ T0 ──┬─ T1 ──┬─ T4 ── T5 ── T6 ──┬─ T7 ── T8
      └─ T3 ──┘                    └─ T10 ─────────────(T13)
 T1 ── T12 ────────────────────────────────────────────(T13)
 ```
+
+## Notes for the dashboard phase (carried from reviews)
+
+- Failed START events have no `State` row, so `State#resume!` can't reach them — the dashboard needs either a class-level/Event-level resume helper or documented raw-event guidance for pre-state-creation failures (Task 11 review, issue 7).
 
 ## Deferred (explicitly out of this plan)
 

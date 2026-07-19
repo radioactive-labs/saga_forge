@@ -7,11 +7,16 @@ module SagaForge
 
     queue_as { SagaForge.config.job_queue }
 
+    # See ExecutionJob::CONCURRENCY_KEY for why this is a constant. `*` soaks
+    # up the job's other two arguments (event_name, armed_version) — only the
+    # state matters for the lock key.
+    CONCURRENCY_KEY = ->(state_id, *) {
+      state = State.find_by(id: state_id)
+      state ? "SagaLock:#{state.saga_class}:#{state.correlation_id}" : "SagaLock:none"
+    }
+
     if defined?(SolidQueue)
-      limits_concurrency key: ->(state_id, *) {
-        state = State.find_by(id: state_id)
-        state ? "SagaLock:#{state.saga_class}:#{state.correlation_id}" : "SagaLock:none"
-      }
+      limits_concurrency key: CONCURRENCY_KEY
     end
 
     def perform(state_id, event_name, armed_version)

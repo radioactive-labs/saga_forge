@@ -4,8 +4,11 @@ module SagaForge
   class RetentionJob < ActiveJob::Base
     queue_as { SagaForge.config.job_queue }
 
+    # See ExecutionJob::CONCURRENCY_KEY for why this is a constant.
+    CONCURRENCY_KEY = "SagaForge::Retention"
+
     if defined?(SolidQueue)
-      limits_concurrency key: "SagaForge::Retention"
+      limits_concurrency key: CONCURRENCY_KEY
     end
 
     BATCH_SIZE = 500

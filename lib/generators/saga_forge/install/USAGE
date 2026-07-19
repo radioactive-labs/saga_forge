@@ -7,6 +7,10 @@ Description:
     db/NAME_migrate instead of db/migrate, so a plain `saga_forge:migrations`
     re-run later (e.g. after a gem upgrade) still targets the right place.
 
+    Re-running this generator with a different --database than last time
+    changes config/initializers/saga_forge.rb's contents, so Thor will prompt
+    to overwrite it. Pass --force to skip the prompt in scripts/CI.
+
 Example:
     bin/rails generate saga_forge:install
 

@@ -8,8 +8,11 @@ module SagaForge
 
     # A fixed singleton key, not per-instance: this is one recurring job, not
     # one lock per saga — an over-long sweep must not overlap the next tick.
+    # See ExecutionJob::CONCURRENCY_KEY for why this is a constant.
+    CONCURRENCY_KEY = "SagaForge::Sweeper"
+
     if defined?(SolidQueue)
-      limits_concurrency key: "SagaForge::Sweeper"
+      limits_concurrency key: CONCURRENCY_KEY
     end
 
     def perform

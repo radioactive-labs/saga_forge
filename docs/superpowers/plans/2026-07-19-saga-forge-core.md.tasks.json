@@ -4,90 +4,90 @@
     {
       "id": 0,
       "subject": "Task 0: Repo scaffold, configuration, test harness",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Bootable gem skeleton; `bundle exec rake` green with Combustion smoke test.\n\n```json:metadata\n{\"files\": [\"saga_forge.gemspec\", \"lib/saga_forge.rb\", \"lib/saga_forge/configuration.rb\", \"test/test_helper.rb\"], \"verifyCommand\": \"bundle exec rake\", \"acceptanceCriteria\": [\"rake green\", \"config defaults per §A.6\", \"migrations_database resolution\", \"guard flag\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: Schema, ApplicationRecord, State/Event models",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Two tables per §A.9, angarium connects_to base class, models with enums/scopes.\n\n```json:metadata\n{\"files\": [\"db/saga_forge_migrate/20260719000001_create_saga_forge_tables.rb\", \"lib/saga_forge/application_record.rb\", \"lib/saga_forge/state.rb\", \"lib/saga_forge/event.rb\"], \"verifyCommand\": \"bundle exec rake test\", \"acceptanceCriteria\": [\"§A.9 columns + inline indexes\", \"compound [event_id, saga_class] unique\", \"derived stalled/suspended scopes\", \"no connects_to when unconfigured\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Port retry policies from chrono_forge",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** RetryPolicy + CompositeRetryPolicy ports with saga defaults (step_default 3/30, compensation_default 10/600).\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/retry_policy.rb\", \"lib/saga_forge/composite_retry_policy.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/retry_policy_test.rb\", \"acceptanceCriteria\": [\"chrono semantics preserved\", \"compensation_default replaces workflow_default\", \"wait_default deleted\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: DSL (Base) and compiled Definition",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Macros record; Definition compiles chain from file order, boot validations §A.8, to_mermaid.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/base.rb\", \"lib/saga_forge/definition.rb\", \"test/internal/app/sagas/order_saga.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/definition_test.rb\", \"acceptanceCriteria\": [\"chain from file order\", \"boot validations\", \"correlate semantics\", \"retry ladder\", \"mermaid with dashed jumps\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: Router, external Publisher, Railtie",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1, 3],
       "description": "**Goal:** SagaForge.publish → resolve, insert pending rows in open txn, enqueue after; dedup [event_id, saga_class]; UnstagedPublishError guard; railtie eager-loads app/sagas.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/router.rb\", \"lib/saga_forge/publisher.rb\", \"lib/saga_forge/railtie.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/publisher_test.rb\", \"acceptanceCriteria\": [\"broadcast resolution\", \"atomic MissingCorrelationError\", \"dedup\", \"guard raises\", \"digest fallback deterministic\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: ExecutionJob lifecycle checks",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Pre-block pipeline: not-found retry/discard, processed-skip, ledger-derived halt, stall spin/park, terminal discard.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/execution_job.rb\", \"lib/saga_forge/execution/runner.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/execution_lifecycle_test.rb\", \"acceptanceCriteria\": [\"not-found absorption\", \"halt from ledger\", \"stall spin/park with budget\", \"terminal discard note\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Facade, block execution, single commit",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5],
       "description": "**Goal:** Facade verbs, in-memory block run, commit (lock+version), staged publish insertion, parked re-delivery, e2e chain.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/execution/facade.rb\", \"lib/saga_forge/execution/runner.rb\"], \"verifyCommand\": \"bundle exec rake test\", \"acceptanceCriteria\": [\"verbs + fall-through\", \"version check + ConcurrencyConflict retry\", \"staged exactly-once\", \"parked re-delivery ledger order\", \"e2e chain completes\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: Retry-policy integration, failed events",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6, 2],
       "description": "**Goal:** handle_error routes through resolved policy; attempts/budgets on event row; exhaustion → failed + halt.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/execution/runner.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/retry_integration_test.rb\", \"acceptanceCriteria\": [\"retry with backoff\", \"per-error budgets\", \"failed + traceback\", \"fail-fast unmatched\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: fail!, compensation runner, terminals",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [7],
       "description": "**Goal:** Derived LIFO compensation, per-step commits, tolerant retries, :compensated/:cancelled, comp_error handling.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/compensation_runner.rb\", \"lib/saga_forge/compensation_job.rb\", \"lib/saga_forge/execution/compensation_facade.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/compensation_test.rb\", \"acceptanceCriteria\": [\"LIFO derived from ledger\", \"stay-loop dedupe\", \"empty-ledger fail!\", \"comp exhaustion recorded\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: Timeouts",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** Version-fenced TimeoutJob armed at commit; on_timeout :fail! or state branch; clock resets per handled event.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/timeout_job.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/timeout_test.rb\", \"acceptanceCriteria\": [\"armed at commit with post-commit version\", \"stale discard\", \"fail!/branch actions\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 10,
       "subject": "Task 10: Sweeper and retention jobs",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [6],
       "description": "**Goal:** SweeperJob re-enqueues aged pending rows; RetentionJob prunes processed events of terminal sagas only.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/sweeper_job.rb\", \"lib/saga_forge/retention_job.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/sweeper_test.rb\", \"acceptanceCriteria\": [\"aged pending swept only\", \"terminal-only pruning\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 11,
       "subject": "Task 11: Operator API",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** retry_stalled!, resume!, compensate! (resume-then-compensate warning), cancel!(reason:) per §A.7.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/state.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/operator_api_test.rb\", \"acceptanceCriteria\": [\"four operator methods\", \"resume-then-compensate warning\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 12,
       "subject": "Task 12: Generators (install + migrations)",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [1],
       "description": "**Goal:** Angarium-pattern generators: ActiveRecord::Migration.copy, --database flag, initializer template + rewrite.\n\n```json:metadata\n{\"files\": [\"lib/generators/saga_forge/install/install_generator.rb\", \"lib/generators/saga_forge/migrations/migrations_generator.rb\"], \"verifyCommand\": \"bundle exec rake test TEST=test/generators_test.rb\", \"acceptanceCriteria\": [\"angarium test matrix\", \"initializer rewrite\", \"idempotent re-runs\"], \"requiresUserVerification\": false}\n```"
     },

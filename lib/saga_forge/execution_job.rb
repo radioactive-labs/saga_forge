@@ -6,11 +6,20 @@ module SagaForge
     NOT_FOUND_RETRIES = 5
     NOT_FOUND_WAIT = 2.seconds
 
+    # Extracted to a constant (rather than inlined into the limits_concurrency
+    # call) so it's unit-testable without Solid Queue loaded: declaring
+    # limits_concurrency is inert without the adapter active (it just sets
+    # class_attributes — see ActiveJob::ConcurrencyControls), but *loading*
+    # Solid Queue this late (after Combustion has already booted the test
+    # app) doesn't retroactively install its ActiveJob extension. See
+    # test/concurrency_controls_test.rb.
+    CONCURRENCY_KEY = ->(event_row_id) {
+      event = Event.find_by(id: event_row_id)
+      event ? "SagaLock:#{event.saga_class}:#{event.correlation_id}" : "SagaLock:none"
+    }
+
     if defined?(SolidQueue)
-      limits_concurrency key: ->(event_row_id) {
-        event = Event.find_by(id: event_row_id)
-        event ? "SagaLock:#{event.saga_class}:#{event.correlation_id}" : "SagaLock:none"
-      }
+      limits_concurrency key: CONCURRENCY_KEY
     end
 
     def perform(event_row_id)
