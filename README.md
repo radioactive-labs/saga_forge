@@ -132,7 +132,7 @@ compensation, parked events whose saga has already moved on);
 a terminal state. Schedule both — with Solid Queue:
 
 ```yaml
-# config/recurring.yml
+# config/recurring.yml (Solid Queue)
 saga_forge_sweeper:
   class: SagaForge::SweeperJob
   schedule: every 30 seconds
