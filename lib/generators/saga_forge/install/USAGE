@@ -1,0 +1,21 @@
+Description:
+    Installs SagaForge: writes config/initializers/saga_forge.rb and copies its
+    engine migration (via saga_forge:migrations).
+
+    Pass --database=NAME to run SagaForge on its own database. This sets
+    config.database in the initializer and installs the migration into
+    db/NAME_migrate instead of db/migrate, so a plain `saga_forge:migrations`
+    re-run later (e.g. after a gem upgrade) still targets the right place.
+
+Example:
+    bin/rails generate saga_forge:install
+
+    This creates:
+        config/initializers/saga_forge.rb
+
+    and copies SagaForge's migration into db/migrate.
+
+    bin/rails generate saga_forge:install --database=saga
+
+    This sets config.database = :saga in the initializer and copies the
+    migration into db/saga_migrate instead.

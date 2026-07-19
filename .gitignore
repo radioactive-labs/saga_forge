@@ -5,3 +5,4 @@ Gemfile.lock
 gemfiles/*.lock
 test/internal/db/*.sqlite3*
 test/internal/log/
+test/tmp/
