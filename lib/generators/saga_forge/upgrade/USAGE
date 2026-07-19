@@ -1,0 +1,15 @@
+Description:
+    Upgrades an existing SagaForge installation to the current schema.
+
+    New applications use `saga_forge:install`. Applications that installed an
+    earlier version run this to pick up any migrations they are missing.
+    Copying is idempotent: a migration that already exists in the target app
+    (db/migrate or db/NAME_migrate) is skipped, not duplicated.
+
+    Multi-database aware: with --database (or config.database recorded in
+    config/initializers/saga_forge.rb by a previous install), missing
+    migrations are copied into db/NAME_migrate instead of db/migrate.
+
+Example:
+    bin/rails g saga_forge:upgrade
+    bin/rails db:migrate

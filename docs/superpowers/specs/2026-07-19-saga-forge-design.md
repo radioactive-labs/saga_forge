@@ -20,7 +20,7 @@ atomicity, event-level stalling with parking, LIFO compensation.
 |---|---|
 | Queue coupling | **Adapter-agnostic.** Correctness on any ActiveJob adapter via pessimistic row lock + optimistic version check at commit (chrono_forge-style locking). When Solid Queue is the adapter, `ExecutionJob` additionally declares `limits_concurrency` on `"SagaLock:#{saga_class}:#{correlation_id}"` as a throughput optimization. No solid_queue gem dependency. |
 | Dashboard scope | **Full dashboard, phased after core.** Core gem built to spec first; `saga_forge-dashboard` engine gem follows in the same repo, modeled on chrono_forge-dashboard. |
-| Multi-DB / base class | **Angarium pattern.** `SagaForge::ApplicationRecord < ActiveRecord::Base` (abstract) calling `connects_to` at class load from `config.database` / `config.connects_to`; migrations shipped in `db/saga_forge_migrate/`; install generator with `--database` flag; `primary_key_type` cascade. Zero config → host's primary connection. (Not chrono_forge's `ApplicationRecord()` host-inheritance pattern.) |
+| Multi-DB / base class | **Angarium pattern for the base class, chrono_forge pattern for migrations** (switched 2026-07-19, user direction — see §2). `SagaForge::ApplicationRecord < ActiveRecord::Base` (abstract) calling `connects_to` at class load from `config.database` / `config.connects_to`; migrations shipped as generator templates with an ordered `MIGRATIONS` array (install/upgrade generators, not `db/saga_forge_migrate/` + `ActiveRecord::Migration.copy`); `--database` flag; `primary_key_type` cascade. Zero config → host's primary connection. (Not chrono_forge's `ApplicationRecord()` host-inheritance pattern.) |
 | Repo strategy | **Greenfield, port selectively.** New repo; infrastructure ported nearly verbatim from chrono_forge (retry policies, lock strategy, generator machinery, test harness, release tooling, dashboard chassis); the saga engine itself written fresh to the spec — its event-driven semantics share little code with chrono's replay executor. |
 | ChronoForge interop | **No gem dependency.** Composition is user-level: a saga block kicks off a chrono workflow; the workflow's completion publishes an event the saga awaits. |
 
@@ -69,16 +69,22 @@ Monorepo at `plutonium/saga_forge`, mirroring chrono_forge's two-gem layout:
     Indexes: `[saga_class, correlation_id, status]`, `[status, created_at]`,
     `[saga_forge_state_id, created_at]`.
   - JSONB on PG, JSON elsewhere (`t.respond_to?(:jsonb)` guard).
-- **Migrations:** canonical copies in `db/saga_forge_migrate/` (never
-  `db/migrate` — keeps Rails from auto-appending them to the primary
-  connection). `saga_forge:install` generator writes a documented
-  initializer (rewriting the `config.database =` line when `--database=NAME`
-  is passed) and invokes `saga_forge:migrations`, which uses
-  `ActiveRecord::Migration.copy` into `db/migrate` (default or
-  `--database=primary`) or `db/NAME_migrate`, and prints the `database.yml`
-  stanza (`migrations_paths:`) plus `bin/rails db:migrate:NAME` next steps.
-  Re-runs are idempotent. No-flag runs fall back to
-  `config.migrations_database` (database, else connects_to writing role).
+- **Migrations:** chrono_forge's template/MigrationActions mechanism (not
+  `db/saga_forge_migrate` + `ActiveRecord::Migration.copy`). The canonical
+  migration lives as a generator template,
+  `lib/generators/saga_forge/templates/install_saga_forge.rb`, listed in an
+  ordered `SagaForge::Generators::MigrationActions::MIGRATIONS` array shared
+  by the install and upgrade generators. `saga_forge:install` writes a
+  documented initializer (rewriting the `config.database =` line when
+  `--database=NAME` is passed) and copies every migration in `MIGRATIONS`
+  into `db/migrate` (default or `--database=primary`) or `db/NAME_migrate`
+  via `migration_template`, skipping any that already exist (glob check) —
+  idempotent by construction. `saga_forge:upgrade` copies only the
+  migrations a previously-installed app is missing, for use after a gem
+  update. Both fall back to `config.migrations_database` (database, else
+  connects_to writing role) when no `--database` flag is given, and
+  `saga_forge:install` prints the `database.yml` stanza (`migrations_paths:`)
+  plus `bin/rails db:migrate:NAME` next steps.
 - **Atomicity across databases:** all engine writes go through
   `SagaForge::ApplicationRecord.transaction`, so the single-commit contract
   holds on whichever database hosts the two tables. External

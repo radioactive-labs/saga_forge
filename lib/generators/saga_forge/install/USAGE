@@ -1,11 +1,14 @@
 Description:
     Installs SagaForge: writes config/initializers/saga_forge.rb and copies its
-    engine migration (via saga_forge:migrations).
+    migration into db/migrate (or db/NAME_migrate for a multi-database setup).
+    Idempotent: migrations that already exist are skipped, so re-running is
+    safe.
 
     Pass --database=NAME to run SagaForge on its own database. This sets
     config.database in the initializer and installs the migration into
-    db/NAME_migrate instead of db/migrate, so a plain `saga_forge:migrations`
-    re-run later (e.g. after a gem upgrade) still targets the right place.
+    db/NAME_migrate instead of db/migrate, so a later `saga_forge:upgrade` run
+    (e.g. after a gem update) still targets the right place without repeating
+    the flag.
 
     Re-running this generator with a different --database than last time
     changes config/initializers/saga_forge.rb's contents, so Thor will prompt

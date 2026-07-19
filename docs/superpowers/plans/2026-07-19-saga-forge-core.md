@@ -2763,6 +2763,19 @@ git commit -m "feat: operator recovery API — retry_stalled!, resume!, compensa
 
 ### Task 12: Generators (install + migrations, angarium pattern)
 
+> **SUPERSEDED (2026-07-19, user direction):** the migration mechanism
+> described below (`db/saga_forge_migrate/` + `saga_forge:migrations` +
+> `ActiveRecord::Migration.copy`) was replaced with chrono_forge's
+> template/`MigrationActions` pattern — migrations now live as generator
+> templates under `lib/generators/saga_forge/templates/`, listed in an
+> ordered `MIGRATIONS` array shared by `saga_forge:install` and the new
+> `saga_forge:upgrade` generator, copied via `migration_template` with an
+> idempotent glob-based skip check. `db/saga_forge_migrate/` was deleted.
+> See the commit that made this change (`refactor: adopt chrono_forge's
+> migration template pattern`) and `docs/superpowers/specs/2026-07-19-saga-forge-design.md`
+> §2 for the current design. The rest of this section is kept as a historical
+> record of the original (superseded) design.
+
 **Goal:** `rails g saga_forge:install [--database=NAME]` writes the initializer and copies migrations to `db/migrate` or `db/NAME_migrate` via `ActiveRecord::Migration.copy`.
 
 **Files:**

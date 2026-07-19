@@ -1,90 +1,146 @@
 require "test_helper"
 require "rails/generators"
-require "rails/generators/test_case"
-require "generators/saga_forge/migrations/migrations_generator"
-require "generators/saga_forge/install/install_generator"
+require "tmpdir"
+require File.expand_path("../lib/generators/saga_forge/install/install_generator.rb", __dir__)
+require File.expand_path("../lib/generators/saga_forge/upgrade/upgrade_generator.rb", __dir__)
 
-module SagaForge
-  class MigrationsGeneratorTest < Rails::Generators::TestCase
-    tests SagaForge::Generators::MigrationsGenerator
-    destination File.expand_path("tmp/generator", __dir__)
-    setup :prepare_destination
-    setup { SagaForge.reset_configuration! }
+class GeneratorsTest < SagaForge::TestCase
+  def migrations_in(dir)
+    Dir.glob(File.join(dir, "db", "migrate", "*.rb")).map { |f| File.basename(f).sub(/\A\d+_/, "") }.sort
+  end
 
-    def saga_forge_tables_migration(dir)
-      Dir[File.join(destination_root, dir, "*.rb")]
-        .find { |f| File.basename(f).match?(/\A\d+_create_saga_forge_tables\.saga_forge\.rb\z/) }
-    end
+  def run_generator(klass, dir, args = [])
+    silence_stream($stdout) { klass.start(args, destination_root: dir) }
+  end
 
-    test "installs into the primary db/migrate by default" do
-      run_generator
-      migration = saga_forge_tables_migration("db/migrate")
-      assert migration, "copies the engine migration to db/migrate"
-      assert_match(/This migration comes from saga_forge/, File.read(migration))
-      assert_empty Dir[File.join(destination_root, "db/saga_forge_migrate/*.rb")]
-    end
+  # Minitest doesn't ship silence_stream everywhere; provide a tiny shim.
+  def silence_stream(stream)
+    old = stream.dup
+    stream.reopen(File::NULL)
+    stream.sync = true
+    yield
+  ensure
+    stream.reopen(old)
+    old.close
+  end
 
-    test "installs into db/NAME_migrate with --database" do
-      run_generator ["--database=saga"]
-      assert saga_forge_tables_migration("db/saga_migrate"), "copies into the database's own path"
-      assert_empty Dir[File.join(destination_root, "db/migrate/*.rb")]
-    end
+  def test_install_copies_the_migration
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir)
 
-    test "treats --database=primary as the primary db/migrate" do
-      run_generator ["--database=primary"]
-      assert saga_forge_tables_migration("db/migrate"), "primary is not db/primary_migrate"
-      assert_empty Dir[File.join(destination_root, "db/primary_migrate/*.rb")]
-    end
-
-    test "falls back to config.database when no flag is given" do
-      SagaForge.config.database = :billing
-      run_generator
-      assert saga_forge_tables_migration("db/billing_migrate"), "reads config so re-runs target the right db"
-    end
-
-    test "re-running is idempotent" do
-      run_generator
-      first = Dir[File.join(destination_root, "db/migrate/*.rb")].sort
-      run_generator
-      second = Dir[File.join(destination_root, "db/migrate/*.rb")].sort
-      assert_equal first, second, "second run copies nothing new"
-      assert_equal 1, second.size
+      assert_equal ["install_saga_forge.rb"], migrations_in(dir),
+        "install should copy the saga_forge migration"
     end
   end
 
-  class InstallGeneratorTest < Rails::Generators::TestCase
-    tests SagaForge::Generators::InstallGenerator
-    destination File.expand_path("tmp/generator", __dir__)
-    setup :prepare_destination
-    setup { SagaForge.reset_configuration! }
+  def test_install_is_idempotent
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir)
+      run_generator(SagaForge::InstallGenerator, dir)
 
-    test "creates the initializer" do
-      run_generator
-      assert_file "config/initializers/saga_forge.rb", /SagaForge\.configure/
+      # Re-running must not duplicate the migration.
+      assert_equal 1, Dir.glob(File.join(dir, "db", "migrate", "*.rb")).size,
+        "re-running install must not create a duplicate migration"
     end
+  end
 
-    test "without --database leaves config.database commented and installs into db/migrate" do
-      run_generator
-      assert_file "config/initializers/saga_forge.rb", /^\s*#\s*config\.database\s*=/
-      assert Dir[File.join(destination_root, "db/migrate/*_create_saga_forge_tables.saga_forge.rb")].any?,
-        "installs the migration into the primary db/migrate"
-      assert_empty Dir[File.join(destination_root, "db/saga_forge_migrate/*.rb")]
+  def test_upgrade_copies_nothing_when_already_installed
+    Dir.mktmpdir do |dir|
+      # An app already installed on the current version has the migration.
+      FileUtils.mkdir_p(File.join(dir, "db", "migrate"))
+      File.write(File.join(dir, "db", "migrate", "20260719000001_install_saga_forge.rb"), "# existing\n")
+
+      run_generator(SagaForge::UpgradeGenerator, dir)
+
+      names = migrations_in(dir)
+      assert_equal ["install_saga_forge.rb"], names
+      assert_equal 1, names.count("install_saga_forge.rb"),
+        "upgrade must not re-copy a migration that already exists"
     end
+  end
 
-    test "with --database sets config.database and installs migrations into db/NAME_migrate" do
-      output = run_generator ["--database=saga"]
-      assert_file "config/initializers/saga_forge.rb", /^\s*config\.database = :saga\s*$/
+  def test_upgrade_copies_the_missing_migration_on_a_bare_app
+    Dir.mktmpdir do |dir|
+      # A bare app (no prior saga_forge install) is missing everything.
+      run_generator(SagaForge::UpgradeGenerator, dir)
 
-      migrations = Dir[File.join(destination_root, "db/saga_migrate/*.rb")].sort
-      assert_equal 1, migrations.size
-      tables = migrations.find { |f| File.basename(f).match?(/\A\d+_create_saga_forge_tables\.saga_forge\.rb\z/) }
-      assert tables, "copies the saga_forge tables migration (re-timestamped, scope-tagged)"
-      body = File.read(tables)
-      assert_match(/create_table :saga_forge_states/, body)
-      assert_match(/This migration comes from saga_forge/, body, "native copy tags the origin")
+      assert_equal ["install_saga_forge.rb"], migrations_in(dir),
+        "upgrade should bring a bare app up to the current schema"
+    end
+  end
 
-      assert_match(/migrations_paths/, output)
-      assert_match(/db:migrate:saga/, output)
+  def test_install_with_database_targets_db_name_migrate_and_records_it
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir, ["--database=saga"])
+
+      assert_equal 1, Dir.glob(File.join(dir, "db", "saga_migrate", "*.rb")).size,
+        "the migration should land in db/saga_migrate"
+      assert_empty Dir.glob(File.join(dir, "db", "migrate", "*.rb")),
+        "nothing should land in db/migrate when --database is given"
+
+      initializer = File.read(File.join(dir, "config", "initializers", "saga_forge.rb"))
+      assert_match(/^  config\.database = :saga$/, initializer,
+        "install must record --database in the initializer for later upgrade runs")
+    end
+  end
+
+  def test_install_generates_commented_initializer_by_default
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir)
+
+      initializer = File.read(File.join(dir, "config", "initializers", "saga_forge.rb"))
+      assert_match(/# config\.database = :saga_forge/, initializer)
+      refute_match(/^  config\.database =/, initializer,
+        "no active config.database line without --database")
+    end
+  end
+
+  def test_install_with_primary_database_behaves_like_no_flag
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir, ["--database=primary"])
+
+      assert_equal 1, Dir.glob(File.join(dir, "db", "migrate", "*.rb")).size,
+        "--database=primary must install into db/migrate like the default"
+
+      initializer = File.read(File.join(dir, "config", "initializers", "saga_forge.rb"))
+      refute_match(/^  config\.database =/, initializer,
+        "--database=primary must not activate config.database (it would trigger connects_to at boot)")
+    end
+  end
+
+  def test_install_with_database_is_idempotent
+    Dir.mktmpdir do |dir|
+      run_generator(SagaForge::InstallGenerator, dir, ["--database=saga"])
+      run_generator(SagaForge::InstallGenerator, dir, ["--database=saga"])
+
+      assert_equal 1, Dir.glob(File.join(dir, "db", "saga_migrate", "*.rb")).size,
+        "re-running install --database must not duplicate the migration"
+    end
+  end
+
+  def test_install_falls_back_to_config_database
+    Dir.mktmpdir do |dir|
+      SagaForge.configure { |c| c.database = :billing }
+
+      run_generator(SagaForge::InstallGenerator, dir)
+
+      assert_equal 1, Dir.glob(File.join(dir, "db", "billing_migrate", "*.rb")).size,
+        "install should read config.database when no flag is given"
+    end
+  end
+
+  def test_upgrade_falls_back_to_config_database
+    Dir.mktmpdir do |dir|
+      SagaForge.configure { |c| c.database = :billing }
+      FileUtils.mkdir_p(File.join(dir, "db", "billing_migrate"))
+      File.write(File.join(dir, "db", "billing_migrate", "20240101000000_install_saga_forge.rb"), "# existing\n")
+
+      run_generator(SagaForge::UpgradeGenerator, dir)
+
+      names = Dir.glob(File.join(dir, "db", "billing_migrate", "*.rb"))
+        .map { |f| File.basename(f).sub(/\A\d+_/, "") }
+      assert_equal 1, names.count("install_saga_forge.rb"),
+        "upgrade must not re-copy the existing install migration"
     end
   end
 end

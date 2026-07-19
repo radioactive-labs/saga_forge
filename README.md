@@ -66,6 +66,11 @@ rails db:migrate
 This writes `config/initializers/saga_forge.rb` and copies SagaForge's
 migration into `db/migrate`.
 
+After a gem update, run `rails generate saga_forge:upgrade` (then
+`rails db:migrate`) to pick up any new migrations without re-running
+`install` — it copies only what your app is missing (idempotent, safe to
+run on every upgrade).
+
 ### Multi-database
 
 SagaForge can keep its two tables in their own database:
@@ -86,11 +91,11 @@ saga_forge:
 ```
 
 then run `bin/rails db:migrate:saga_forge`. A later `rails generate
-saga_forge:migrations` re-run (e.g. after a gem upgrade) reads
-`config.database` back out of the initializer, so it still targets the right
-place without repeating the flag. Re-running `saga_forge:install` with a
-*different* `--database` than last time changes the initializer's contents,
-so Thor will prompt before overwriting it — pass `--force` in scripts.
+saga_forge:upgrade` run (e.g. after a gem upgrade) reads `config.database`
+back out of the initializer, so it still targets the right place without
+repeating the flag. Re-running `saga_forge:install` with a *different*
+`--database` than last time changes the initializer's contents, so Thor will
+prompt before overwriting it — pass `--force` in scripts.
 
 For custom roles or shards, pass a hash straight to Rails' `connects_to` in
 the initializer (it wins over `config.database`):
