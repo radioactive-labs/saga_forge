@@ -225,7 +225,13 @@ module SagaForge
       end
 
       def arm_timeouts(definition, state_row)
-        # Task 9.
+        current = state_row.current_state.to_sym
+        definition.events_for_state(current).each do |event_name|
+          handler = definition.handler_for(event_name)
+          next unless handler.timeout
+          TimeoutJob.set(wait: handler.timeout)
+            .perform_later(state_row.id, event_name.to_s, state_row.version)
+        end
       end
     end
   end
