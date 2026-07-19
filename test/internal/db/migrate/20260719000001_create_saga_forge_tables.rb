@@ -13,7 +13,7 @@ class CreateSagaForgeTables < ActiveRecord::Migration[7.1]
       if t.respond_to?(:jsonb)
         t.jsonb :context, null: false, default: {}
       else
-        t.json :context
+        t.json :context, null: false, default: {}
       end
       t.timestamps
 
@@ -25,6 +25,8 @@ class CreateSagaForgeTables < ActiveRecord::Migration[7.1]
       t.string :event_id, null: false
       t.string :saga_class, null: false
       t.string :correlation_id, null: false
+      # Lone-column index on saga_forge_state_id intentionally omitted:
+      # the [saga_forge_state_id, created_at] index below covers left-prefix lookups.
       t.references :saga_forge_state, type: fk_type, foreign_key: {to_table: :saga_forge_states}, index: false
       t.string :event_name, null: false
       t.integer :status, null: false, default: 0
@@ -35,8 +37,8 @@ class CreateSagaForgeTables < ActiveRecord::Migration[7.1]
         t.jsonb :retry_budgets, null: false, default: {}
         t.jsonb :error
       else
-        t.json :payload
-        t.json :retry_budgets
+        t.json :payload, null: false, default: {}
+        t.json :retry_budgets, null: false, default: {}
         t.json :error
       end
       t.timestamps

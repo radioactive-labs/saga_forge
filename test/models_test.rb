@@ -39,4 +39,13 @@ class ModelsTest < SagaForge::TestCase
       event_name: "two", state: s, created_at: 1.minute.ago)
     assert_equal [e1.id, e2.id], s.history.ids
   end
+
+  test "json columns default to empty hashes on every adapter" do
+    s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "d1", current_state: "waiting")
+    assert_equal({}, s.reload.context)
+    e = SagaForge::Event.create!(event_id: "def1", saga_class: "DemoSaga", correlation_id: "d1", event_name: "went")
+    assert_equal({}, e.reload.payload)
+    assert_equal({}, e.reload.retry_budgets)
+    assert_nil e.reload.error
+  end
 end
