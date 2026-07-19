@@ -250,7 +250,7 @@ class OrderFulfillmentSaga < SagaForge::Base
   retry_policy max_attempts: 5, base: 2, cap: 60      # class-wide default (optional)
 
   # Kick off payment. The gateway acknowledges immediately with a PENDING
-  # intent — no money has moved yet. Settlement is decided out of band and
+  # intent; no money has moved yet. Settlement is decided out of band and
   # arrives later as a webhook: that is the async boundary the next state
   # parks on.
   start_with :order_placed, compensate: :cancel_payment do |saga, payload|
