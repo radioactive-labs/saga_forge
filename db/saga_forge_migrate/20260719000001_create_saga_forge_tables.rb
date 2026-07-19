@@ -19,6 +19,10 @@ class CreateSagaForgeTables < ActiveRecord::Migration[7.1]
 
       t.index %i[saga_class correlation_id], unique: true
       t.index %i[saga_class current_state]
+      # Plain (non-partial, adapter-portable) index: the sweeper's stranded-
+      # compensating scan filters current_state cross-class, which neither
+      # of the above compound indexes serves.
+      t.index :current_state
     end
 
     create_table :saga_forge_events, id: SagaForge.primary_key_type do |t|

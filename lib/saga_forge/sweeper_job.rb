@@ -6,6 +6,12 @@ module SagaForge
   class SweeperJob < ActiveJob::Base
     queue_as { SagaForge.config.job_queue }
 
+    # A fixed singleton key, not per-instance: this is one recurring job, not
+    # one lock per saga — an over-long sweep must not overlap the next tick.
+    if defined?(SolidQueue)
+      limits_concurrency key: "SagaForge::Sweeper"
+    end
+
     def perform
       sweep_aged_pending
       sweep_stranded_compensating
@@ -50,8 +56,12 @@ module SagaForge
           next
         end
         definition = klass.definition
-        events.each do |event|
-          state = State.find_by(saga_class: saga_class, correlation_id: event.correlation_id)
+        states = State.where(saga_class: saga_class, correlation_id: events.map(&:correlation_id).uniq)
+          .index_by(&:correlation_id)
+        # Ledger order (§A.3) among the events already loaded in memory —
+        # re-delivery must honor the same ordering a live redeliver_parked would.
+        events.sort_by { |e| [e.created_at, e.id] }.each do |event|
+          state = states[event.correlation_id]
           next unless state
           next unless definition.state_for_event(event.event_name)&.to_s == state.current_state
           event.update!(status: :pending, stall_count: 0)

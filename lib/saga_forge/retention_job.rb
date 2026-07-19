@@ -4,18 +4,30 @@ module SagaForge
   class RetentionJob < ActiveJob::Base
     queue_as { SagaForge.config.job_queue }
 
+    if defined?(SolidQueue)
+      limits_concurrency key: "SagaForge::Retention"
+    end
+
+    BATCH_SIZE = 500
+
     def perform
       cutoff = SagaForge.config.retention.ago
+      prunable_ids = []
+
       Event.processed.where(created_at: ..cutoff).find_each do |event|
         state = event.state
-        if state.nil?
-          event.destroy! # orphaned discard notes derive nothing
-          next
+        # No state row: an orphaned discard note deriving nothing — always
+        # prunable once aged. Otherwise prune only once the saga is terminal.
+        next unless state.nil? || state.saga_class.safe_constantize&.definition&.terminal?(state.current_state)
+
+        prunable_ids << event.id
+        if prunable_ids.size >= BATCH_SIZE
+          Event.where(id: prunable_ids).delete_all
+          prunable_ids.clear
         end
-        definition = state.saga_class.safe_constantize&.definition
-        next unless definition
-        event.destroy! if definition.terminal?(state.current_state)
       end
+
+      Event.where(id: prunable_ids).delete_all if prunable_ids.any?
     end
   end
 end

@@ -93,6 +93,20 @@ class SweeperTest < SagaForge::TestCase
     SagaForge::State.create!(saga_class: "VanishedSaga", correlation_id: "40", current_state: "x")
     SagaForge::Event.create!(event_id: "v1", saga_class: "VanishedSaga",
       correlation_id: "40", event_name: "gone", status: :stalled, updated_at: 5.minutes.ago)
-    assert_nothing_raised { SagaForge::SweeperJob.perform_now }
+
+    messages = []
+    fake_logger = Object.new
+    fake_logger.define_singleton_method(:error) { |&blk| messages << blk.call }
+
+    original_logger = Rails.logger
+    Rails.logger = fake_logger
+    begin
+      assert_nothing_raised { SagaForge::SweeperJob.perform_now }
+    ensure
+      Rails.logger = original_logger
+    end
+
+    assert(messages.any? { |m| m.include?("VanishedSaga") },
+      "expected the skip to be logged, got: #{messages.inspect}")
   end
 end
