@@ -3082,6 +3082,7 @@ T1 ── T12 ──────────────────────
 
 ## Deferred (explicitly out of this plan)
 
+- **§A.8's best-effort chain-reachability/dead-end WARNING** (final review, Minor-1): consciously deferred — it's advisory-only, inherently incomplete (jumps are opaque), and the dashboard phase's graph rendering is the natural home for surfacing unreachable states visually.
 - `saga_forge-dashboard` engine gem (phase 2 — its own plan)
 - Release tooling (git-cliff rake tasks) — comes with the first release, alongside phase 2
 - strong_migrations CI lane hardening, `site/` docs page

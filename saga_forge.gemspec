@@ -17,7 +17,7 @@ Gem::Specification.new do |spec|
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
       (f == File.basename(__FILE__)) ||
-        f.start_with?("bin/", "test/", "spec/", "features/", ".git", ".github", "appraisal", "gemfiles/", "docs/", "site/", "saga_forge-dashboard/")
+        f.start_with?("bin/", "test/", "spec/", "features/", ".git", ".github", "appraisal", "Appraisals", "gemfiles/", "docs/", "site/", "saga_forge-dashboard/", "Gemfile", "Rakefile", ".standard.yml")
     end
   end
   spec.require_paths = ["lib"]
