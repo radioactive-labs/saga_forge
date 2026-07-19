@@ -21,7 +21,19 @@ module SagaForge
         name = next_owed(definition)
         return finalize! if name.nil?
 
-        outcome = run_one(definition, name)
+        entry_version = state.version
+        begin
+          outcome = run_one(definition, name, entry_version)
+        rescue ConcurrencyConflict
+          # Lost the race to another CompensationJob for this same instance
+          # (defense-in-depth — limits_concurrency should make this rare in
+          # practice). Nothing was written on this path: the raise happens
+          # inside run_one's with_lock, before any update!, so no
+          # comp_attempts/comp_error bookkeeping to unwind. Re-loop: reload
+          # picks up the winner's committed progress, next_owed re-derives
+          # against it, and we snapshot fresh before trying again.
+          next
+        end
         return outcome unless outcome == :continue
       end
     end
@@ -37,7 +49,7 @@ module SagaForge
       owed.map(&:to_s).find { |n| !done.include?(n) }&.to_sym
     end
 
-    def run_one(definition, name)
+    def run_one(definition, name, entry_version)
       block = definition.compensations.fetch(name)
       context = state.context.deep_dup.with_indifferent_access
       facade = Execution::CompensationFacade.new(
@@ -55,6 +67,18 @@ module SagaForge
 
       inserted = nil
       state.with_lock do
+        # facade.context was built from a pre-lock read (above); with_lock's
+        # reload just refreshed state to whatever's actually committed. If
+        # another CompensationJob for this same instance landed a compensation
+        # in between, state.version has moved past entry_version — writing
+        # `committed` (the whole context, built from our stale snapshot) now
+        # would silently clobber that instance's progress (lost context keys,
+        # a "completed" name no longer in `compensated`, so it'd look owed
+        # again). Mirrors Execution::Runner#commit!'s optimistic-concurrency
+        # check; on conflict we raise and let #call re-loop against fresh
+        # state rather than trying to merge two contexts here.
+        raise ConcurrencyConflict, "compensation version moved" if state.version != entry_version
+
         committed = facade.context
         meta = (committed["__saga_forge"] || {}).dup
         meta["compensated"] = (meta["compensated"] || []) + [name.to_s]
@@ -73,13 +97,15 @@ module SagaForge
     def record_comp_error(name, error)
       backoff = nil
       state.with_lock do
-        # deep_dup — NOT `state.context` mutated in place. With no other
-        # attribute changing on the exhaustion path, an in-place mutation of
-        # the same Hash object AR already holds as the "before" snapshot
-        # would make old_value.equal-content?(new_value) true (same object,
-        # so `!=` sees no diff) and the whole write would silently no-op.
-        # A fresh dup is a different object with different content, so the
-        # change is always detected.
+        # deep_dup — not because in-place mutation would fool Rails' dirty
+        # tracking (JSON/JSONB attributes re-deserialize the stored raw value
+        # and diff by content on every check, so an in-place mutation IS
+        # detected correctly; that concern doesn't hold up). This is snapshot
+        # isolation, the same pre-lock-read discipline used everywhere else
+        # context is worked on (Execution::Runner#execute!, this class's own
+        # #run_one): treat state.context as a value read at a point in time,
+        # and hand back an independent copy rather than mutating the live
+        # attribute object in place.
         context = state.context.deep_dup
         meta = (context["__saga_forge"] || {}).dup
         attempts = (meta["comp_attempts"] || {}).dup

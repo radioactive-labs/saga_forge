@@ -94,6 +94,66 @@ class CompensationTest < SagaForge::TestCase
     assert_nil s.context["released"]         # release_stock did NOT re-run
   end
 
+  test "run_one raises ConcurrencyConflict on a stale entry_version and writes nothing" do
+    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
+      SagaForge.publish(:lifo_order_placed, event_id: "cv1", order_id: 51, total: 3)
+      SagaForge.publish(:lifo_payment_settled, event_id: "cv2", order_id: 51)
+      SagaForge.publish(:lifo_payment_failed, event_id: "cv3", order_id: 51, code: "x")
+    end
+    s = LifoOrderSaga.find_by_correlation(51)
+    assert_equal "compensating", s.current_state
+    context_before = s.context
+
+    runner = SagaForge::CompensationRunner.new(s)
+    definition = s.saga_definition
+    stale_entry_version = s.version + 1 # deliberately does not match the real current version
+
+    assert_raises(SagaForge::ConcurrencyConflict) do
+      runner.send(:run_one, definition, :release_stock, stale_entry_version)
+    end
+
+    s.reload
+    assert_equal context_before, s.context
+    assert_empty(s.context.dig("__saga_forge", "compensated") || [])
+  end
+
+  test "concurrent compensation runners converge without clobbering committed progress" do
+    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
+      SagaForge.publish(:lifo_order_placed, event_id: "cc1", order_id: 52, total: 3)
+      SagaForge.publish(:lifo_payment_settled, event_id: "cc2", order_id: 52)
+      SagaForge.publish(:lifo_payment_failed, event_id: "cc3", order_id: 52, code: "x")
+    end
+    s = LifoOrderSaga.find_by_correlation(52)
+    assert_equal "compensating", s.current_state
+
+    # Two independent workers, each with their own in-memory copy of the row —
+    # simulating two CompensationJobs racing (limits_concurrency should
+    # prevent this in production; this proves the fence holds even if it
+    # doesn't). runner_b's first run_one call is intercepted: before it does
+    # its own with_lock write, we let runner_a run to full completion (both
+    # compensations + finalize). runner_b's stale pre-lock snapshot must then
+    # be fenced off instead of clobbering runner_a's committed progress.
+    runner_a = SagaForge::CompensationRunner.new(SagaForge::State.find(s.id))
+    runner_b = SagaForge::CompensationRunner.new(SagaForge::State.find(s.id))
+
+    ran_a = false
+    original_run_one = runner_b.method(:run_one)
+    runner_b.define_singleton_method(:run_one) do |*args|
+      unless ran_a
+        ran_a = true
+        runner_a.call
+      end
+      original_run_one.call(*args)
+    end
+
+    runner_b.call
+    s.reload
+    assert_equal "compensated", s.current_state
+    assert_equal %w[release_stock refund], s.context.dig("__saga_forge", "compensated")
+    assert_equal true, s.context["released"]
+    assert_equal ["ch_52"], s.context["refunded"]
+  end
+
   test "the execution guard covers compensation blocks too — SagaForge.publish still raises" do
     assert_raises(SagaForge::UnstagedPublishError) do
       SagaForge.guarding_execution { SagaForge.publish(:lifo_order_placed, event_id: "guard1", order_id: 999) }
