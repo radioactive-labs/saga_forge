@@ -90,9 +90,10 @@ class ExecutionLifecycleTest < SagaForge::TestCase
     assert_enqueued_jobs 1, only: SagaForge::ExecutionJob
   end
 
-  test "matched event reaches execute! (Task 6 boundary)" do
+  test "matched event reaches execute! and commits (Task 6 boundary)" do
     make_state(corr: "9", state: "awaiting_settlement")
     e = make_event(name: "payment_settled", corr: "9")
-    assert_raises(NotImplementedError) { SagaForge::Execution::Runner.new(e).call }
+    assert_equal [:done], SagaForge::Execution::Runner.new(e).call
+    assert e.reload.processed?
   end
 end
