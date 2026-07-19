@@ -12,7 +12,7 @@
 </head>
 <body class="min-h-screen bg-[var(--sf-bg)] font-sans text-[var(--sf-fg)] antialiased" data-poll-interval="<%= poll_interval %>">
   <% if flash.any? %>
-    <div class="pointer-events-none fixed right-4 top-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+    <div role="status" aria-live="polite" class="pointer-events-none fixed right-4 top-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
       <% flash.each do |type, msg| %>
         <div data-flash class="pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-md transition-opacity duration-300 <%= type.to_s == "alert" ? "border-[var(--sf-flash-err-border)] bg-[var(--sf-flash-err-bg)] text-[var(--sf-flash-err-fg)]" : "border-[var(--sf-flash-ok-border)] bg-[var(--sf-flash-ok-bg)] text-[var(--sf-flash-ok-fg)]" %>"><%= msg %></div>
       <% end %>
@@ -25,10 +25,15 @@
         SagaForge
       </a>
       <nav class="flex items-center gap-5 text-sm">
-        <a href="<%= sagas_path %>" class="<%= controller_name == "sagas" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Sagas</a>
-        <a href="<%= "#{request.script_name}/overview" %>" class="<%= controller_name == "overview" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Overview</a>
-        <a href="<%= "#{request.script_name}/stalled" %>" class="<%= controller_name == "stalled" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Stalled</a>
-        <a href="<%= "#{request.script_name}/suspended" %>" class="<%= controller_name == "suspended" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Suspended</a>
+        <% [
+             ["Sagas", sagas_path],
+             ["Overview", "#{request.script_name}/overview"],
+             ["Stalled", "#{request.script_name}/stalled"],
+             ["Suspended", "#{request.script_name}/suspended"]
+           ].each do |label, href| %>
+          <% active = request.path == href %>
+          <a href="<%= href %>" <%= 'aria-current="page"' if active %> class="<%= active ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>"><%= label %></a>
+        <% end %>
       </nav>
       <div class="ml-auto flex flex-wrap items-center gap-2">
         <%# Hidden on pages that opt out of auto-refresh (poll_region? false), so
@@ -45,8 +50,8 @@
           </label>
         <% end %>
         <div class="flex items-center gap-0.5 rounded-md border border-[var(--sf-border)] p-0.5 text-xs" title="Timestamp display">
-          <button type="button" data-time-set="relative" class="rounded px-2 py-0.5 <%= absolute_time? ? "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" : "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" %>">relative</button>
-          <button type="button" data-time-set="absolute" class="rounded px-2 py-0.5 <%= absolute_time? ? "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">absolute</button>
+          <button type="button" data-time-set="relative" aria-pressed="<%= !absolute_time? %>" class="rounded px-2 py-0.5 <%= absolute_time? ? "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" : "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" %>">relative</button>
+          <button type="button" data-time-set="absolute" aria-pressed="<%= absolute_time? %>" class="rounded px-2 py-0.5 <%= absolute_time? ? "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">absolute</button>
         </div>
       </div>
     </div>

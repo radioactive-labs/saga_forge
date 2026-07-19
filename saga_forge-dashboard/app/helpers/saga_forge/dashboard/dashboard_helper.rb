@@ -1,11 +1,12 @@
 module SagaForge
   module Dashboard
     module DashboardHelper
-      # Rails mixes this into real views automatically, so content_tag is
-      # already available there — but the helper unit test includes this
-      # module directly into a plain test object, so it's pulled in
-      # explicitly here to make content_tag/tag work standalone too.
+      # Rails mixes these into real views automatically, so content_tag and
+      # time_ago_in_words are already available there — but the helper unit
+      # test includes this module directly into a plain test object, so
+      # they're pulled in explicitly here to work standalone too.
       include ActionView::Helpers::TagHelper
+      include ActionView::Helpers::DateHelper
 
       STATE_COLORS = {
         "compensating" => "amber", "compensated" => "slate",
@@ -27,7 +28,7 @@ module SagaForge
       def bar_width_class(pct) = "sf-bar-#{pct.to_i.clamp(0, 100)}"
 
       def format_bytes(n)
-        return "0 B" if n.to_i.zero?
+        return "0 B" if n.to_i <= 0
         units = %w[B KB MB]
         e = [Math.log(n, 1024).floor, units.size - 1].min
         "#{(n.to_f / (1024**e)).round(1)} #{units[e]}"
@@ -37,10 +38,19 @@ module SagaForge
         cookies[:sf_poll_interval].presence&.to_i || SagaForge::Dashboard.config.polling_interval
       end
 
+      # Rendered relative ("3 minutes ago") or absolute (UTC) per the viewer's
+      # sf_time_format cookie preference, with the other form available on
+      # hover. This is decided server-side at render time — there's no
+      # client-side relative-time JS; the toggle button (dashboard.js) just
+      # writes the cookie and does a Turbo reload, which re-renders every
+      # time_tag on the page with the new preference.
       def time_tag(t)
         return "" unless t
-        content_tag(:time, t.iso8601, datetime: t.iso8601, class: "sf-time",
-          title: t.utc.strftime("%Y-%m-%d %H:%M:%S UTC"), data: {ts: t.to_i})
+        absolute = t.utc.strftime("%Y-%m-%d %H:%M:%S UTC")
+        relative = "#{time_ago_in_words(t)} ago"
+        shown = absolute_time? ? absolute : relative
+        title = absolute_time? ? relative : absolute
+        content_tag(:time, shown, datetime: t.iso8601, class: "sf-time", title: title)
       end
 
       # --- Layout-support helpers (not in the acceptance-criteria list above,
