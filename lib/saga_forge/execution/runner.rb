@@ -33,13 +33,16 @@ module SagaForge
         Event.failed.for_instance(event.saga_class, event.correlation_id).exists?
       end
 
+      # Atomic increment (not read-modify-write): concurrent deliveries outside
+      # Solid Queue's serialization must not lose updates (§A.3 — correctness
+      # never depends on the concurrency-limit nicety).
       def stall!
-        count = event.stall_count + 1
+        Event.where(id: event.id).update_all("stall_count = stall_count + 1")
+        count = event.reload.stall_count
         if count >= SagaForge.config.stall_budget
-          event.update!(status: :stalled, stall_count: count)
+          event.update!(status: :stalled)
           [:done]
         else
-          event.update!(stall_count: count)
           [:respin]
         end
       end

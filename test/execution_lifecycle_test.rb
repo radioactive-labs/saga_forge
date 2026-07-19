@@ -17,6 +17,20 @@ class ExecutionLifecycleTest < SagaForge::TestCase
     assert_enqueued_jobs 1, only: SagaForge::ExecutionJob
   end
 
+  test "missing row discards silently once retries are exhausted" do
+    job = SagaForge::ExecutionJob.new(-1)
+    # perform_now increments `executions` by 1 before calling #perform, so
+    # priming it at NOT_FOUND_RETRIES - 1 lands exactly on the threshold
+    # (executions == NOT_FOUND_RETRIES) inside perform — the last attempt
+    # that must NOT retry. Empirically confirmed: priming at NOT_FOUND_RETRIES
+    # itself overshoots to NOT_FOUND_RETRIES + 1, still discarding but past
+    # the exact boundary.
+    job.executions = SagaForge::ExecutionJob::NOT_FOUND_RETRIES - 1
+    assert_nothing_raised { job.perform_now }
+    assert_equal SagaForge::ExecutionJob::NOT_FOUND_RETRIES, job.executions
+    assert_no_enqueued_jobs
+  end
+
   test "processed, stalled, and failed rows exit immediately" do
     make_state
     %i[processed stalled failed].each do |st|
