@@ -12,12 +12,18 @@ class OrderFulfillmentSaga < SagaForge::Base
   correlate_by :order_id
   retry_policy max_attempts: 5, base: 2, cap: 60      # class-wide default (optional)
 
-  start_with :order_placed, compensate: :refund_payment do |saga, payload|
+  # Kick off payment. The gateway acknowledges immediately with a PENDING
+  # intent — no money has moved yet. Settlement is decided out of band and
+  # arrives later as a webhook: that is the async boundary the next state
+  # parks on.
+  start_with :order_placed, compensate: :cancel_payment do |saga, payload|
     saga.context[:items] = payload[:items]
-    charge = PaymentGateway.charge(payload[:total], idempotency_key: saga.correlation_id)
-    saga.context[:transaction_id] = charge.id
+    intent = PaymentGateway.create_intent(payload[:total], idempotency_key: saga.correlation_id)
+    saga.context[:intent_id] = intent.id
   end                                             # ⇒ falls through to :awaiting_settlement
 
+  # The webhook controller announces the outcome:
+  #   SagaForge.publish :payment_settled, event_id: webhook.id, order_id: order.id
   during :awaiting_settlement, on: :payment_settled, compensate: :release_inventory do |saga, _payload|
     Warehouse.reserve(saga.context[:items], key: saga.correlation_id)
     Shipping.dispatch(saga.correlation_id)
@@ -30,10 +36,10 @@ class OrderFulfillmentSaga < SagaForge::Base
 
   finish_with :completed
 
-  compensation :refund_payment do |saga|
-    return unless saga.context[:transaction_id]   # self-guard: context records what happened
-    PaymentGateway.refund(saga.context[:transaction_id],
-                          idempotency_key: "refund:#{saga.correlation_id}")
+  compensation :cancel_payment do |saga|
+    next unless saga.context[:intent_id]          # self-guard: context records what happened
+    PaymentGateway.cancel_or_refund(saga.context[:intent_id],   # cancel if pending, refund if settled
+                                    idempotency_key: "undo:#{saga.correlation_id}")
   end
 
   compensation :release_inventory do |saga|
