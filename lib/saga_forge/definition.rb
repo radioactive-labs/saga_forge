@@ -38,6 +38,7 @@ module SagaForge
       @states = during_states + @terminal_states
       @successors = build_successors(during_states)
       validate_compensations!
+      deep_freeze!
     end
 
     def handler_for(event) = @handlers_by_event[event.to_sym]
@@ -98,19 +99,28 @@ module SagaForge
     end
 
     # Best-effort literal scan for `transition_to :sym` in handler blocks
-    # (jumps are opaque Ruby; unresolvable ones are simply not drawn).
+    # (jumps are opaque Ruby; unresolvable ones are simply not drawn). Each
+    # match is attributed to a handler only if the match's line falls within
+    # that handler's EXACT block extent (via RubyVM::InstructionSequence's
+    # code_location), so two sagas sharing one file never cross-attribute a
+    # jump. Anything we can't precisely locate is simply not drawn — a wrong
+    # edge is worse than a missing one.
     def jump_targets
-      by_file = @handlers_by_event.values
-        .select { |h| h.block&.source_location }
-        .group_by { |h| h.block.source_location.first }
+      return [] unless defined?(RubyVM::InstructionSequence)
+
       jumps = []
-      by_file.each do |file, hs|
+      @handlers_by_event.each_value do |h|
+        extent = block_extent(h.block)
+        next unless extent
+        file, first_lineno, last_lineno = extent
         next unless File.exist?(file)
-        File.readlines(file).each_with_index do |line, idx|
+
+        lines = File.readlines(file)
+        (first_lineno..last_lineno).each do |lineno|
+          line = lines[lineno - 1]
+          next unless line
           line.scan(/transition_to[\s(]+:(\w+)/) do |(target)|
-            owner = hs.select { |h| h.block.source_location.last <= idx + 1 }.max_by { |h| h.block.source_location.last }
-            next unless owner
-            from = (owner.state == START) ? "[*]" : owner.state
+            from = (h.state == START) ? "[*]" : h.state
             jumps << [from, target.to_sym] if declared?(target)
           end
         end
@@ -120,9 +130,27 @@ module SagaForge
 
     private
 
+    # [file, first_lineno, last_lineno] for a handler's block, or nil if the
+    # exact extent can't be determined (no iseq, or no code_location — older
+    # Ruby / non-MRI).
+    def block_extent(block)
+      return nil unless block
+      iseq = RubyVM::InstructionSequence.of(block)
+      return nil unless iseq
+      code_location = iseq.to_a[4].is_a?(Hash) ? iseq.to_a[4][:code_location] : nil
+      return nil unless code_location
+      first_lineno, _first_col, last_lineno, _last_col = code_location
+      [iseq.path, first_lineno, last_lineno]
+    rescue TypeError, ArgumentError
+      nil
+    end
+
     def register_handler(state, d)
       event = d[:event]
       if (existing = @handlers_by_event[event])
+        if state == START && existing.state == START
+          raise DefinitionError, "#{klass} declares start_with more than once"
+        end
         raise AmbiguousEventError,
           "#{klass} registers #{event.inspect} under both #{existing.state.inspect} and #{state.inspect}"
       end
@@ -149,6 +177,20 @@ module SagaForge
         raise UnknownCompensationError,
           "#{klass} handler for #{h.event.inspect} compensates with undeclared #{h.compensate.inspect}"
       end
+    end
+
+    # Definition.compile freezes the Definition object itself, but that's
+    # shallow: the memoized @definition is shared process-wide, so a stray
+    # mutation of one of its collections (or a Handler struct) would
+    # permanently corrupt boot metadata for every saga instance. Freeze
+    # everything reachable.
+    def deep_freeze!
+      @handlers_by_event.each_value(&:freeze)
+      @handlers_by_event.freeze
+      @compensations.freeze
+      @states.freeze
+      @terminal_states.freeze
+      @successors.freeze
     end
   end
 end

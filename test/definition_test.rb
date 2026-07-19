@@ -1,5 +1,11 @@
 require "test_helper"
 
+# Zeitwerk/Rails autoloading expects one constant per file matching the
+# filename; this fixture intentionally defines two sagas in one file (to
+# regression-test jump_targets cross-attribution), so it must be required
+# explicitly rather than relying on autoload.
+require_relative "internal/app/sagas/multi_saga_file"
+
 class DefinitionTest < SagaForge::TestCase
   test "chain built from file order" do
     d = OrderSaga.definition
@@ -70,6 +76,19 @@ class DefinitionTest < SagaForge::TestCase
     end
   end
 
+  test "duplicate start_with on the same event raises DefinitionError, not AmbiguousEventError" do
+    err = assert_raises(SagaForge::DefinitionError) do
+      Class.new(SagaForge::Base) do
+        def self.name = "DupStart"
+        correlate_by :id
+        start_with(:go4) { |_, _| }
+        start_with(:go4) { |_, _| }
+        finish_with :done
+      end.definition
+    end
+    assert_match(/more than once/, err.message)
+  end
+
   test "correlate: symbol sugar, block with event name, nil raises" do
     d = OrderSaga.definition
     assert_equal "42", d.correlate({"order_id" => 42}.with_indifferent_access, :order_placed)
@@ -111,5 +130,35 @@ class DefinitionTest < SagaForge::TestCase
     assert_includes m, "awaiting_settlement --> awaiting_review"
     assert_includes m, "completed --> [*]"
     assert_includes m, "awaiting_review --> completed: jump"
+  end
+
+  test "definition is deep-frozen: collections and Handler structs are frozen" do
+    d = OrderSaga.definition
+    assert d.frozen?
+    assert d.handlers_by_event.frozen?
+    assert d.handlers_by_event.values.all?(&:frozen?)
+    assert d.compensations.frozen?
+    assert d.states.frozen?
+    assert d.terminal_states.frozen?
+  end
+
+  test "jump_targets does not cross-attribute between sagas sharing one file" do
+    first_mermaid = FirstMultiSaga.to_mermaid
+    second_mermaid = SecondMultiSaga.to_mermaid
+
+    refute_match(/jump/, first_mermaid)
+    assert_includes second_mermaid, "midway --> done: jump"
+  end
+
+  test "retry_policy raises when mixing a policy object with kwargs" do
+    assert_raises(ArgumentError) do
+      Class.new(SagaForge::Base) do
+        def self.name = "MixedRetrySaga"
+        correlate_by :id
+        retry_policy SagaForge::RetryPolicy.new, base: 5
+        start_with(:go5) { |_, _| }
+        finish_with :done
+      end
+    end
   end
 end

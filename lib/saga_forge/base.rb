@@ -31,6 +31,9 @@ module SagaForge
       end
 
       def retry_policy(*policies, **kwargs)
+        if policies.any? && kwargs.any?
+          raise ArgumentError, "pass either policy objects or kwargs, not both"
+        end
         @default_retry_policy =
           if policies.any?
             (policies.size == 1 && kwargs.empty?) ? policies.first : CompositeRetryPolicy.new(policies)
