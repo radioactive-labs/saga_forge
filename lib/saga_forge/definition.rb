@@ -129,6 +129,14 @@ module SagaForge
       (@states - @terminal_states).each do |s|
         nodes << SagaForge::Dashboard::Node.new(id: s.to_s, label: s.to_s, kind: :state)
       end
+      # Only @terminal_states.first is on the chain below (build_successors
+      # picks it as the chain's sink too). Additional terminals are only
+      # wired in when a handler literally `transition_to`s them (jump_targets,
+      # below) — the normal multi-terminal pattern. A terminal reached only
+      # by a computed/conditional transition, or not reached at all, has no
+      # edge and renders as an isolated node: that's deliberate, not a bug —
+      # it's the same best-effort honesty jump/stay already carry (a wrong
+      # edge is worse than a missing one).
       @terminal_states.each do |s|
         nodes << SagaForge::Dashboard::Node.new(id: s.to_s, label: s.to_s, kind: :terminal)
       end
@@ -147,6 +155,8 @@ module SagaForge
         edges << SagaForge::Dashboard::Edge.new(from: state.to_s, to: state.to_s, kind: :stay, label: "stay")
       end
 
+      nodes.each(&:freeze)
+      edges.each(&:freeze)
       SagaForge::Dashboard::Graph.new(nodes.freeze, edges.freeze).freeze
     end
 
