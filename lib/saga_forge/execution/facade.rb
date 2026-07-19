@@ -3,6 +3,12 @@ module SagaForge
     # The `saga` object yielded to forward blocks (§A.1 verbs). Everything is
     # staged in memory; the Runner commits it.
     class Facade
+      # Verb semantics: last verb call wins — calling transition_to twice, or
+      # stay then transition_to, simply overwrites @outcome with whatever ran
+      # last, and the block keeps executing. fail! is the one exception: it
+      # both records its outcome AND throws :saga_forge_fail, short-
+      # circuiting the rest of the block immediately. Every other verb is
+      # just a plain method call with no control-flow effect.
       attr_reader :correlation_id, :current_state, :context, :outcome, :staged_publishes
 
       def initialize(definition:, correlation_id:, current_state:, context:, source_event_id:)

@@ -84,6 +84,18 @@ module SagaForge
       end
 
       # Task 7 wires retry policies; until then block errors propagate loudly.
+      #
+      # Task 7 warning: this hook is for BLOCK errors only. ConcurrencyConflict
+      # (raised only from commit!, and itself a SagaForge::Error subclass) is
+      # deliberately caught by the method-level `rescue ConcurrencyConflict`
+      # on execute! — which sits AFTER this hook in the call chain, catching
+      # only what commit! raises, never what the block raises. Do not
+      # restructure this so ConcurrencyConflict could reach a generic
+      # `rescue => error` here — that would burn retry-policy budget on a
+      # version race, which isn't a block failure. Likewise, the fail! verb
+      # unwinds via `throw :saga_forge_fail`, not a raised exception, so it
+      # never reaches handle_error and must never be routed through
+      # retry-policy logic either.
       def handle_error(error, definition, handler)
         raise error
       end
@@ -127,6 +139,13 @@ module SagaForge
           event.update!(status: :processed, saga_forge_state_id: state_row.id, error: nil)
 
           unless failing # fail! discards staged publishes (§A.1)
+            # RecordNotUnique here is unreachable by design, not defensively
+            # rescued: staged event_ids are namespaced by THIS run's own
+            # source event id ("staged:#{event.id}:#{seq}"), and the
+            # processed-skip at Runner#call's entry means a source event
+            # that already committed can never re-run its block and re-stage
+            # those same ids. A raise here is a loud invariant violation on
+            # purpose — do not add a rescue.
             @inserted_rows = facade.staged_publishes.map { |attrs| Event.create!(attrs) }
           end
         end

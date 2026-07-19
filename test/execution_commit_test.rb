@@ -70,12 +70,55 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_equal "done_counting", StaySaga.find_by_correlation(1).current_state
   end
 
-  test "transition_to jumps; undeclared target raises UnknownStateError leaving nothing committed" do
+  test "transition_to jumps to a declared target" do
     run_all(publish_rows(:order_placed, order_id: 11, shipment_ref: "S1", total: 10))
     run_all(publish_rows(:payment_settled, order_id: 11))
     e = publish_rows(:review_passed, order_id: 11).first
     assert_equal [:done], SagaForge::Execution::Runner.new(e).call
     assert_equal "completed", OrderSaga.find_by_correlation(11).current_state
+  end
+
+  test "transition_to an undeclared target raises UnknownStateError, leaving nothing committed" do
+    run_all(publish_rows(:bad_jump_started, bad_jump_id: 99))
+    state_before = BadJumpSaga.find_by_correlation(99)
+    assert_equal "mid", state_before.current_state
+    version_before = state_before.version
+
+    e = publish_rows(:bad_jump_tick, bad_jump_id: 99).first
+    # Task 7 will route unmatched block errors through the retry policy
+    # (exhaustion / no match -> a `failed` event); until then, handle_error
+    # simply re-raises, so the raise propagates straight out of Runner#call.
+    assert_raises(SagaForge::UnknownStateError) do
+      SagaForge::Execution::Runner.new(e).call
+    end
+
+    assert e.reload.pending?
+    state_after = state_before.reload
+    assert_equal "mid", state_after.current_state
+    assert_equal version_before, state_after.version
+    assert_equal 0, SagaForge::Event.where("event_id LIKE ?", "staged:#{e.id}:%").count
+  end
+
+  test "duplicate start race (concurrent create) returns retry outcome; exactly one state row exists" do
+    e = publish_rows(:order_placed, order_id: 13, shipment_ref: "S2", total: 5)
+      .find { |r| r.saga_class == "OrderSaga" }
+    runner = SagaForge::Execution::Runner.new(e)
+    # Simulate a concurrent commit that creates the same (saga_class,
+    # correlation_id) row between this runner reading state_row = nil and
+    # its own commit!'s State.create! — the unique index turns the second
+    # creation into ActiveRecord::RecordNotUnique, which commit! maps to
+    # ConcurrencyConflict.
+    original = runner.method(:commit!)
+    runner.define_singleton_method(:commit!) do |*args|
+      SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "13",
+        current_state: "awaiting_settlement", version: 0)
+      original.call(*args)
+    end
+    outcome, wait = runner.call
+    assert_equal :retry, outcome
+    assert wait.present?
+    assert e.reload.pending?
+    assert_equal 1, SagaForge::State.where(saga_class: "OrderSaga", correlation_id: "13").count
   end
 
   test "fail! marks event processed, saves context snapshot, discards staged, goes compensating" do
