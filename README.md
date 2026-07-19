@@ -230,8 +230,34 @@ with the saga's current state:
    the new state are re-delivered automatically, in the order they were
    recorded.
 
-So a `review_passed` webhook that arrives before `payment_settled` waits its turn, and the saga processes both in the declared order no matter
-what order the network delivered them in.
+So a `review_passed` webhook that arrives before `payment_settled` waits its
+turn, and the saga processes both in the declared order no matter what order
+the network delivered them in.
+
+### The stall budget
+
+The two knobs multiply into how long an early event keeps spinning before it
+parks: `stall_budget` spins of `stall_wait` each, so the default 40 by 3
+seconds is roughly two minutes of cheap queue-spinning. It is a floor, not an
+exact clock, since each spin is a re-enqueue and adds a little queue latency.
+Those spins cost nothing but queue cycles and never consume a retry attempt.
+
+Size the budget to how far out of order you actually expect events to arrive.
+The default absorbs a predecessor that lags by up to about two minutes, which
+covers a webhook provider having a slow moment. If a predecessor event
+routinely lags further (a settlement that can take ten minutes to confirm, an
+upstream saga that runs long), raise `config.stall_budget` so the follower
+waits it out instead of parking and waiting for the sweeper. Lower
+`config.stall_wait` to spin more tightly when you want early events picked up
+faster and don't mind the extra enqueues.
+
+Parking is not a dead end. It just stops the busy-wait: a parked event costs
+nothing until it is re-delivered. Re-delivery happens the moment a commit
+lands the saga in the event's state (the commit's own after-effects flip every
+matching `stalled` row back to `pending` and re-enqueue it, resetting the
+budget), and `SagaForge::SweeperJob` re-checks parked events on its own cadence
+as a backstop, so an event whose saga advanced during a crash is still
+recovered. You can also force it by hand with `record.retry_stalled!`.
 
 Events for a saga already in a terminal state are marked processed with a
 discard note (logged, harmless). Truly orphaned events (a correlation id no
