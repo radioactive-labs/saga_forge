@@ -4,6 +4,7 @@ require "zeitwerk"
 require "active_record"
 require "active_job"
 require "digest"
+require "json"
 
 module SagaForge
   Loader = Zeitwerk::Loader.for_gem.tap do |loader|

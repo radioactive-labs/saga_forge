@@ -15,6 +15,8 @@ end
 require "saga_forge"
 require "rails/test_help"
 
+Rails.application.eager_load!
+
 module SagaForge
   class TestCase < ActiveSupport::TestCase
     include ActiveJob::TestHelper

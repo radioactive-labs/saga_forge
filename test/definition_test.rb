@@ -4,7 +4,7 @@ require "test_helper"
 # filename; this fixture intentionally defines two sagas in one file (to
 # regression-test jump_targets cross-attribution), so it must be required
 # explicitly rather than relying on autoload.
-require_relative "internal/app/sagas/multi_saga_file"
+require_relative "support/multi_saga_file"
 
 class DefinitionTest < SagaForge::TestCase
   test "chain built from file order" do
