@@ -59,6 +59,56 @@ class DefinitionTest < SagaForge::TestCase
     end
   end
 
+  test "on_timeout to an undeclared state raises DefinitionError at boot" do
+    err = assert_raises(SagaForge::DefinitionError) do
+      Class.new(SagaForge::Base) do
+        def self.name = "BadTimeoutTargetSaga"
+        correlate_by :id
+        start_with(:go6) { |_, _| }
+        during(:w, on: :tick6, timeout: 5.minutes, on_timeout: :nonexistent) { |_, _| }
+        finish_with :done
+      end.definition
+    end
+    assert_match(/tick6/, err.message)
+  end
+
+  test "timeout: without on_timeout: raises DefinitionError at boot" do
+    err = assert_raises(SagaForge::DefinitionError) do
+      Class.new(SagaForge::Base) do
+        def self.name = "DanglingTimeoutSaga"
+        correlate_by :id
+        start_with(:go7) { |_, _| }
+        during(:w, on: :tick7, timeout: 5.minutes) { |_, _| }
+        finish_with :done
+      end.definition
+    end
+    assert_match(/timeout: without on_timeout:/, err.message)
+  end
+
+  test "on_timeout: without timeout: raises DefinitionError at boot" do
+    err = assert_raises(SagaForge::DefinitionError) do
+      Class.new(SagaForge::Base) do
+        def self.name = "DanglingOnTimeoutSaga"
+        correlate_by :id
+        start_with(:go8) { |_, _| }
+        during(:w, on: :tick8, on_timeout: :fail!) { |_, _| }
+        finish_with :done
+      end.definition
+    end
+    assert_match(/on_timeout: without timeout:/, err.message)
+  end
+
+  test "on_timeout: :fail! (string or symbol) passes boot validation" do
+    d = Class.new(SagaForge::Base) do
+      def self.name = "OkTimeoutSaga"
+      correlate_by :id
+      start_with(:go9) { |_, _| }
+      during(:w, on: :tick9, timeout: 5.minutes, on_timeout: "fail!") { |_, _| }
+      finish_with :done
+    end.definition
+    assert_equal 5.minutes, d.handler_for(:tick9).timeout
+  end
+
   test "missing correlate_by, no terminal, and no start raise" do
     assert_raises(SagaForge::MissingCorrelationError) do
       Class.new(SagaForge::Base) do

@@ -3,6 +3,8 @@ module SagaForge
     # Processes one pending ledger row through the §A.4 pipeline.
     # Returns [:done] | [:respin] | [:retry, seconds].
     class Runner
+      include PostCommit
+
       ERROR_MESSAGE_LIMIT = 10_000
       BACKTRACE_LINES = 50
 
@@ -212,26 +214,6 @@ module SagaForge
 
         redeliver_parked(definition, state_row)
         arm_timeouts(definition, state_row)
-      end
-
-      def redeliver_parked(definition, state_row)
-        names = definition.events_for_state(state_row.current_state).map(&:to_s)
-        return if names.empty?
-        Event.stalled.for_instance(event.saga_class, event.correlation_id)
-          .where(event_name: names).ledger_order.each do |parked|
-          parked.update!(status: :pending, stall_count: 0)
-          ExecutionJob.perform_later(parked.id)
-        end
-      end
-
-      def arm_timeouts(definition, state_row)
-        current = state_row.current_state.to_sym
-        definition.events_for_state(current).each do |event_name|
-          handler = definition.handler_for(event_name)
-          next unless handler.timeout
-          TimeoutJob.set(wait: handler.timeout)
-            .perform_later(state_row.id, event_name.to_s, state_row.version)
-        end
       end
     end
   end

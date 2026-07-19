@@ -3,7 +3,16 @@ module SagaForge
   # principle that powers stalling. The clock resets on each handled event
   # because every commit bumps version and re-arms (§A.1).
   class TimeoutJob < ActiveJob::Base
+    include Execution::PostCommit
+
     queue_as { SagaForge.config.job_queue }
+
+    if defined?(SolidQueue)
+      limits_concurrency key: ->(state_id, *) {
+        state = State.find_by(id: state_id)
+        state ? "SagaLock:#{state.saga_class}:#{state.correlation_id}" : "SagaLock:none"
+      }
+    end
 
     def perform(state_id, event_name, armed_version)
       state = State.find_by(id: state_id)
@@ -14,11 +23,12 @@ module SagaForge
       handler = definition.handler_for(event_name)
       return unless handler&.timeout
 
-      case handler.on_timeout&.to_sym
+      # Definition#validate_timeouts! guarantees on_timeout is present
+      # (:fail! or a declared state) whenever timeout: is declared — no nil
+      # case to handle here.
+      case handler.on_timeout.to_sym
       when :fail!
         fail_saga!(state, armed_version)
-      when nil
-        Rails.logger.warn { "[saga_forge] timeout fired for #{state.saga_class}##{state.correlation_id} but handler declares no on_timeout — ignoring" }
       else
         branch!(state, definition, handler.on_timeout, armed_version)
       end
@@ -46,6 +56,10 @@ module SagaForge
       CompensationJob.perform_later(state.id) if transitioned
     end
 
+    # declared? is re-checked at fire time as a belt-and-braces invariant:
+    # boot validation (Definition#validate_timeouts!) can't see a state that
+    # gets removed in a later deploy while an old timer is still armed — that
+    # must scream, not silently discard.
     def branch!(state, definition, target, armed_version)
       target = target.to_s
       unless definition.declared?(target)
@@ -60,26 +74,8 @@ module SagaForge
       end
       return unless transitioned
 
-      redeliver_parked_for(state, definition)
-      rearm(state, definition)
-    end
-
-    def redeliver_parked_for(state, definition)
-      names = definition.events_for_state(state.current_state).map(&:to_s)
-      return if names.empty?
-      Event.stalled.for_instance(state.saga_class, state.correlation_id)
-        .where(event_name: names).ledger_order.each do |parked|
-        parked.update!(status: :pending, stall_count: 0)
-        ExecutionJob.perform_later(parked.id)
-      end
-    end
-
-    def rearm(state, definition)
-      definition.events_for_state(state.current_state.to_sym).each do |event_name|
-        handler = definition.handler_for(event_name)
-        next unless handler.timeout
-        TimeoutJob.set(wait: handler.timeout).perform_later(state.id, event_name.to_s, state.version)
-      end
+      redeliver_parked(definition, state)
+      arm_timeouts(definition, state)
     end
   end
 end

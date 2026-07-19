@@ -38,6 +38,7 @@ module SagaForge
       @states = during_states + @terminal_states
       @successors = build_successors(during_states)
       validate_compensations!
+      validate_timeouts!
       deep_freeze!
     end
 
@@ -176,6 +177,31 @@ module SagaForge
         next if h.compensate.nil? || @compensations.key?(h.compensate)
         raise UnknownCompensationError,
           "#{klass} handler for #{h.event.inspect} compensates with undeclared #{h.compensate.inspect}"
+      end
+    end
+
+    # timeout:/on_timeout: are a pair: neither makes sense without the other.
+    # A resolvable on_timeout is checked now (boot) so a typo'd or stale
+    # target screams at compile time, not months later when a timer fires
+    # (TimeoutJob's fire-time declared? check is belt-and-braces for state
+    # removed in a later deploy while old timers are still armed).
+    def validate_timeouts!
+      @handlers_by_event.each_value do |h|
+        if h.timeout && h.on_timeout.nil?
+          raise DefinitionError,
+            "#{klass} handler for #{h.event.inspect} declares timeout: without on_timeout:"
+        end
+        if h.on_timeout && h.timeout.nil?
+          raise DefinitionError,
+            "#{klass} handler for #{h.event.inspect} declares on_timeout: without timeout:"
+        end
+        next unless h.timeout
+
+        target = h.on_timeout.to_sym
+        next if target == :fail!
+        next if declared?(target)
+        raise DefinitionError,
+          "#{klass} handler for #{h.event.inspect} declares on_timeout: #{h.on_timeout.inspect} — not a declared state"
       end
     end
 
