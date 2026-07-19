@@ -1,8 +1,64 @@
 <!DOCTYPE html>
 <html>
-  <head>
-    <title>SagaForge</title>
-    <%= csrf_meta_tags %>
-  </head>
-  <body><%= yield %></body>
+<head>
+  <title>SagaForge</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <%= csrf_meta_tags %>
+  <link rel="stylesheet" href="<%= "#{request.script_name}/assets/dashboard.css?v=#{SagaForge::Dashboard.asset_digest("dashboard.css")}" %>">
+  <%# Turbo drives all navigation and form submits (SPA-style, no full reloads).
+      It lives in <head> so Turbo Drive keeps it across body swaps and never
+      re-initialises it — a body <script> would re-run on every visit. %>
+  <script src="<%= request.script_name %>/assets/turbo.min.js?v=<%= SagaForge::Dashboard.asset_digest("turbo.min.js") %>"></script>
+</head>
+<body class="min-h-screen bg-[var(--sf-bg)] font-sans text-[var(--sf-fg)] antialiased" data-poll-interval="<%= poll_interval %>">
+  <% if flash.any? %>
+    <div class="pointer-events-none fixed right-4 top-4 z-50 flex w-80 max-w-[calc(100vw-2rem)] flex-col gap-2">
+      <% flash.each do |type, msg| %>
+        <div data-flash class="pointer-events-auto rounded-md border px-3 py-2 text-sm shadow-md transition-opacity duration-300 <%= type.to_s == "alert" ? "border-[var(--sf-flash-err-border)] bg-[var(--sf-flash-err-bg)] text-[var(--sf-flash-err-fg)]" : "border-[var(--sf-flash-ok-border)] bg-[var(--sf-flash-ok-bg)] text-[var(--sf-flash-ok-fg)]" %>"><%= msg %></div>
+      <% end %>
+    </div>
+  <% end %>
+  <header class="border-b border-[var(--sf-border)] bg-[var(--sf-surface)]">
+    <div class="mx-auto flex max-w-6xl flex-wrap items-center gap-x-6 gap-y-2 px-4 py-3">
+      <a href="<%= root_path %>" class="flex items-center gap-2 font-semibold tracking-tight">
+        <span class="inline-block h-3.5 w-3.5 rounded-sm bg-[var(--sf-accent)]"></span>
+        SagaForge
+      </a>
+      <nav class="flex items-center gap-5 text-sm">
+        <a href="<%= sagas_path %>" class="<%= controller_name == "sagas" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Sagas</a>
+        <a href="<%= "#{request.script_name}/overview" %>" class="<%= controller_name == "overview" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Overview</a>
+        <a href="<%= "#{request.script_name}/stalled" %>" class="<%= controller_name == "stalled" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Stalled</a>
+        <a href="<%= "#{request.script_name}/suspended" %>" class="<%= controller_name == "suspended" ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">Suspended</a>
+      </nav>
+      <div class="ml-auto flex flex-wrap items-center gap-2">
+        <%# Hidden on pages that opt out of auto-refresh (poll_region? false), so
+            a control that does nothing there doesn't confuse. %>
+        <% if poll_region? %>
+          <% current_poll = poll_interval %>
+          <label class="flex items-center gap-1 text-xs text-[var(--sf-soft)]" title="Auto-refresh">
+            <span>refresh</span>
+            <select data-poll-select class="rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-1.5 py-1 text-xs text-[var(--sf-fg)]">
+              <% (poll_options | [current_poll]).sort.each do |secs| %>
+                <option value="<%= secs %>" <%= "selected" if secs == current_poll %>><%= poll_label(secs) %></option>
+              <% end %>
+            </select>
+          </label>
+        <% end %>
+        <div class="flex items-center gap-0.5 rounded-md border border-[var(--sf-border)] p-0.5 text-xs" title="Timestamp display">
+          <button type="button" data-time-set="relative" class="rounded px-2 py-0.5 <%= absolute_time? ? "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" : "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" %>">relative</button>
+          <button type="button" data-time-set="absolute" class="rounded px-2 py-0.5 <%= absolute_time? ? "bg-[var(--sf-accent)] text-[var(--sf-accent-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>">absolute</button>
+        </div>
+      </div>
+    </div>
+  </header>
+  <%# data-poll-region / id: the JS morph-refreshes this region in place (idiomorph
+      preserves filter text, focus, and scroll). Marking <main> makes pages refresh
+      — the nav and the refresh/time controls sit in <header>, outside the morph. A
+      page can opt out (poll_region? false) when an in-place refresh would break it
+      (e.g. the definition graph's live Cytoscape canvas). %>
+  <main id="sf-poll-region" class="mx-auto max-w-6xl px-4 py-6" <%= "data-poll-region" if poll_region? %>>
+    <%= yield %>
+  </main>
+  <script src="<%= "#{request.script_name}/assets/dashboard.js?v=#{SagaForge::Dashboard.asset_digest("dashboard.js")}" %>"></script>
+</body>
 </html>

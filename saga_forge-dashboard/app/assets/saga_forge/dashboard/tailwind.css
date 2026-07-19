@@ -1,1 +1,299 @@
 @import "tailwindcss";
+
+/*
+ * SagaForge dashboard styles. Source for the compiled dashboard.css.
+ * Rebuild after editing this file or any view: `bundle exec rake tailwind:build`.
+ *
+ * Design rule: color means saga/event state; all other chrome is neutral,
+ * themed via CSS variables (see the --sf-* custom properties below) so a
+ * single build supports both light and dark without a Tailwind `dark:`
+ * variant. System fonts only (no external fonts, CSP-friendly).
+ */
+
+@theme {
+  --font-sans: ui-sans-serif, system-ui, -apple-system, "Segoe UI", Roboto, sans-serif;
+  --font-mono: ui-monospace, "SF Mono", SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+/*
+ * Theme variables. Light values live on :root; a `prefers-color-scheme: dark`
+ * media query supplies the system-dark defaults, and the explicit
+ * `[data-theme]` attribute selectors let a future manual toggle override
+ * either direction — mirrors the marketing site's index.html so the same
+ * indigo accent (#4650c8 light / #97a0f5 dark) reads consistently everywhere.
+ */
+:root {
+  --sf-bg: #fafafa;
+  --sf-surface: #ffffff;
+  --sf-fg: #18181b;
+  --sf-soft: #71717a;
+  --sf-border: #e4e4e7;
+
+  --sf-accent: #4650c8;
+  --sf-accent-fg: #ffffff;
+
+  --sf-badge-indigo-bg: #eef0fc;
+  --sf-badge-indigo-fg: #4650c8;
+  --sf-badge-indigo-border: #c7cbf0;
+
+  --sf-badge-green-bg: #ecfdf5;
+  --sf-badge-green-fg: #047857;
+  --sf-badge-green-border: #a7f3d0;
+
+  --sf-badge-amber-bg: #fffbeb;
+  --sf-badge-amber-fg: #b45309;
+  --sf-badge-amber-border: #fde68a;
+
+  --sf-badge-red-bg: #fff1f2;
+  --sf-badge-red-fg: #be123c;
+  --sf-badge-red-border: #fecdd3;
+
+  --sf-badge-slate-bg: #f4f4f5;
+  --sf-badge-slate-fg: #52525b;
+  --sf-badge-slate-border: #e4e4e7;
+
+  --sf-flash-ok-bg: #ecfdf5;
+  --sf-flash-ok-fg: #065f46;
+  --sf-flash-ok-border: #a7f3d0;
+
+  --sf-flash-err-bg: #fff1f2;
+  --sf-flash-err-fg: #9f1239;
+  --sf-flash-err-border: #fecdd3;
+}
+
+@media (prefers-color-scheme: dark) {
+  :root {
+    --sf-bg: #101317;
+    --sf-surface: #16191f;
+    --sf-fg: #e4e4e7;
+    --sf-soft: #9a9aa2;
+    --sf-border: #2a2e35;
+
+    --sf-accent: #97a0f5;
+    --sf-accent-fg: #14162b;
+
+    --sf-badge-indigo-bg: rgba(151, 160, 245, 0.12);
+    --sf-badge-indigo-fg: #b7bdf7;
+    --sf-badge-indigo-border: rgba(151, 160, 245, 0.3);
+
+    --sf-badge-green-bg: rgba(16, 185, 129, 0.12);
+    --sf-badge-green-fg: #6ee7b7;
+    --sf-badge-green-border: rgba(16, 185, 129, 0.3);
+
+    --sf-badge-amber-bg: rgba(245, 158, 11, 0.12);
+    --sf-badge-amber-fg: #fcd34d;
+    --sf-badge-amber-border: rgba(245, 158, 11, 0.3);
+
+    --sf-badge-red-bg: rgba(244, 63, 94, 0.12);
+    --sf-badge-red-fg: #fda4af;
+    --sf-badge-red-border: rgba(244, 63, 94, 0.3);
+
+    --sf-badge-slate-bg: rgba(161, 161, 170, 0.12);
+    --sf-badge-slate-fg: #d4d4d8;
+    --sf-badge-slate-border: rgba(161, 161, 170, 0.3);
+
+    --sf-flash-ok-bg: rgba(16, 185, 129, 0.12);
+    --sf-flash-ok-fg: #6ee7b7;
+    --sf-flash-ok-border: rgba(16, 185, 129, 0.3);
+
+    --sf-flash-err-bg: rgba(244, 63, 94, 0.12);
+    --sf-flash-err-fg: #fda4af;
+    --sf-flash-err-border: rgba(244, 63, 94, 0.3);
+  }
+}
+
+:root[data-theme="light"] {
+  --sf-bg: #fafafa;
+  --sf-surface: #ffffff;
+  --sf-fg: #18181b;
+  --sf-soft: #71717a;
+  --sf-border: #e4e4e7;
+  --sf-accent: #4650c8;
+  --sf-accent-fg: #ffffff;
+  --sf-badge-indigo-bg: #eef0fc;
+  --sf-badge-indigo-fg: #4650c8;
+  --sf-badge-indigo-border: #c7cbf0;
+  --sf-badge-green-bg: #ecfdf5;
+  --sf-badge-green-fg: #047857;
+  --sf-badge-green-border: #a7f3d0;
+  --sf-badge-amber-bg: #fffbeb;
+  --sf-badge-amber-fg: #b45309;
+  --sf-badge-amber-border: #fde68a;
+  --sf-badge-red-bg: #fff1f2;
+  --sf-badge-red-fg: #be123c;
+  --sf-badge-red-border: #fecdd3;
+  --sf-badge-slate-bg: #f4f4f5;
+  --sf-badge-slate-fg: #52525b;
+  --sf-badge-slate-border: #e4e4e7;
+  --sf-flash-ok-bg: #ecfdf5;
+  --sf-flash-ok-fg: #065f46;
+  --sf-flash-ok-border: #a7f3d0;
+  --sf-flash-err-bg: #fff1f2;
+  --sf-flash-err-fg: #9f1239;
+  --sf-flash-err-border: #fecdd3;
+}
+
+:root[data-theme="dark"] {
+  --sf-bg: #101317;
+  --sf-surface: #16191f;
+  --sf-fg: #e4e4e7;
+  --sf-soft: #9a9aa2;
+  --sf-border: #2a2e35;
+  --sf-accent: #97a0f5;
+  --sf-accent-fg: #14162b;
+  --sf-badge-indigo-bg: rgba(151, 160, 245, 0.12);
+  --sf-badge-indigo-fg: #b7bdf7;
+  --sf-badge-indigo-border: rgba(151, 160, 245, 0.3);
+  --sf-badge-green-bg: rgba(16, 185, 129, 0.12);
+  --sf-badge-green-fg: #6ee7b7;
+  --sf-badge-green-border: rgba(16, 185, 129, 0.3);
+  --sf-badge-amber-bg: rgba(245, 158, 11, 0.12);
+  --sf-badge-amber-fg: #fcd34d;
+  --sf-badge-amber-border: rgba(245, 158, 11, 0.3);
+  --sf-badge-red-bg: rgba(244, 63, 94, 0.12);
+  --sf-badge-red-fg: #fda4af;
+  --sf-badge-red-border: rgba(244, 63, 94, 0.3);
+  --sf-badge-slate-bg: rgba(161, 161, 170, 0.12);
+  --sf-badge-slate-fg: #d4d4d8;
+  --sf-badge-slate-border: rgba(161, 161, 170, 0.3);
+  --sf-flash-ok-bg: rgba(16, 185, 129, 0.12);
+  --sf-flash-ok-fg: #6ee7b7;
+  --sf-flash-ok-border: rgba(16, 185, 129, 0.3);
+  --sf-flash-err-bg: rgba(244, 63, 94, 0.12);
+  --sf-flash-err-fg: #fda4af;
+  --sf-flash-err-border: rgba(244, 63, 94, 0.3);
+}
+
+@layer components {
+  /* State/status badges (the one place color is allowed). Colors come from
+     the --sf-badge-*-{bg,fg,border} variables above so they adapt with the
+     theme without needing a separate dark ruleset per color. */
+  .sf-badge { @apply inline-flex items-center gap-1.5 rounded-full border px-2 py-0.5 font-mono text-xs font-medium; }
+  .sf-badge-indigo { background-color: var(--sf-badge-indigo-bg); color: var(--sf-badge-indigo-fg); border-color: var(--sf-badge-indigo-border); }
+  .sf-badge-green { background-color: var(--sf-badge-green-bg); color: var(--sf-badge-green-fg); border-color: var(--sf-badge-green-border); }
+  .sf-badge-amber { background-color: var(--sf-badge-amber-bg); color: var(--sf-badge-amber-fg); border-color: var(--sf-badge-amber-border); }
+  .sf-badge-red { background-color: var(--sf-badge-red-bg); color: var(--sf-badge-red-fg); border-color: var(--sf-badge-red-border); }
+  .sf-badge-slate { background-color: var(--sf-badge-slate-bg); color: var(--sf-badge-slate-fg); border-color: var(--sf-badge-slate-border); }
+
+  /* Buttons: ink chrome by default; -primary uses the indigo accent. */
+  .sf-btn { @apply inline-flex items-center gap-1.5 rounded-md border px-3 py-1.5 text-sm font-medium shadow-sm transition focus:outline-none focus-visible:ring-2; border-color: var(--sf-border); background-color: var(--sf-surface); color: var(--sf-fg); }
+  .sf-btn:hover { background-color: var(--sf-bg); }
+  .sf-btn-primary { border-color: var(--sf-accent); background-color: var(--sf-accent); color: var(--sf-accent-fg); }
+  .sf-btn-primary:hover { opacity: 0.9; }
+  .sf-btn-danger { @apply border-rose-300 text-rose-700; }
+  .sf-btn-danger:hover { @apply bg-rose-50; }
+
+  /* Surfaces */
+  .sf-card { @apply rounded-lg border shadow-sm; border-color: var(--sf-border); background-color: var(--sf-surface); }
+
+  /* Proportional meters (analytics bars, duration bars, etc). Widths are
+     pre-generated 1%-step classes so no inline style is ever needed (keeps a
+     strict style-src CSP intact) — see .sf-bar-{0..100} below. */
+  .sf-bar { @apply h-full block; }
+}
+
+/* Width steps at 1% granularity so bar_width_class(pct) can render any
+   integer 0..100 without an inline style. */
+@layer components {
+  .sf-bar-0 { width: 0%; }
+  .sf-bar-1 { width: 1%; }
+  .sf-bar-2 { width: 2%; }
+  .sf-bar-3 { width: 3%; }
+  .sf-bar-4 { width: 4%; }
+  .sf-bar-5 { width: 5%; }
+  .sf-bar-6 { width: 6%; }
+  .sf-bar-7 { width: 7%; }
+  .sf-bar-8 { width: 8%; }
+  .sf-bar-9 { width: 9%; }
+  .sf-bar-10 { width: 10%; }
+  .sf-bar-11 { width: 11%; }
+  .sf-bar-12 { width: 12%; }
+  .sf-bar-13 { width: 13%; }
+  .sf-bar-14 { width: 14%; }
+  .sf-bar-15 { width: 15%; }
+  .sf-bar-16 { width: 16%; }
+  .sf-bar-17 { width: 17%; }
+  .sf-bar-18 { width: 18%; }
+  .sf-bar-19 { width: 19%; }
+  .sf-bar-20 { width: 20%; }
+  .sf-bar-21 { width: 21%; }
+  .sf-bar-22 { width: 22%; }
+  .sf-bar-23 { width: 23%; }
+  .sf-bar-24 { width: 24%; }
+  .sf-bar-25 { width: 25%; }
+  .sf-bar-26 { width: 26%; }
+  .sf-bar-27 { width: 27%; }
+  .sf-bar-28 { width: 28%; }
+  .sf-bar-29 { width: 29%; }
+  .sf-bar-30 { width: 30%; }
+  .sf-bar-31 { width: 31%; }
+  .sf-bar-32 { width: 32%; }
+  .sf-bar-33 { width: 33%; }
+  .sf-bar-34 { width: 34%; }
+  .sf-bar-35 { width: 35%; }
+  .sf-bar-36 { width: 36%; }
+  .sf-bar-37 { width: 37%; }
+  .sf-bar-38 { width: 38%; }
+  .sf-bar-39 { width: 39%; }
+  .sf-bar-40 { width: 40%; }
+  .sf-bar-41 { width: 41%; }
+  .sf-bar-42 { width: 42%; }
+  .sf-bar-43 { width: 43%; }
+  .sf-bar-44 { width: 44%; }
+  .sf-bar-45 { width: 45%; }
+  .sf-bar-46 { width: 46%; }
+  .sf-bar-47 { width: 47%; }
+  .sf-bar-48 { width: 48%; }
+  .sf-bar-49 { width: 49%; }
+  .sf-bar-50 { width: 50%; }
+  .sf-bar-51 { width: 51%; }
+  .sf-bar-52 { width: 52%; }
+  .sf-bar-53 { width: 53%; }
+  .sf-bar-54 { width: 54%; }
+  .sf-bar-55 { width: 55%; }
+  .sf-bar-56 { width: 56%; }
+  .sf-bar-57 { width: 57%; }
+  .sf-bar-58 { width: 58%; }
+  .sf-bar-59 { width: 59%; }
+  .sf-bar-60 { width: 60%; }
+  .sf-bar-61 { width: 61%; }
+  .sf-bar-62 { width: 62%; }
+  .sf-bar-63 { width: 63%; }
+  .sf-bar-64 { width: 64%; }
+  .sf-bar-65 { width: 65%; }
+  .sf-bar-66 { width: 66%; }
+  .sf-bar-67 { width: 67%; }
+  .sf-bar-68 { width: 68%; }
+  .sf-bar-69 { width: 69%; }
+  .sf-bar-70 { width: 70%; }
+  .sf-bar-71 { width: 71%; }
+  .sf-bar-72 { width: 72%; }
+  .sf-bar-73 { width: 73%; }
+  .sf-bar-74 { width: 74%; }
+  .sf-bar-75 { width: 75%; }
+  .sf-bar-76 { width: 76%; }
+  .sf-bar-77 { width: 77%; }
+  .sf-bar-78 { width: 78%; }
+  .sf-bar-79 { width: 79%; }
+  .sf-bar-80 { width: 80%; }
+  .sf-bar-81 { width: 81%; }
+  .sf-bar-82 { width: 82%; }
+  .sf-bar-83 { width: 83%; }
+  .sf-bar-84 { width: 84%; }
+  .sf-bar-85 { width: 85%; }
+  .sf-bar-86 { width: 86%; }
+  .sf-bar-87 { width: 87%; }
+  .sf-bar-88 { width: 88%; }
+  .sf-bar-89 { width: 89%; }
+  .sf-bar-90 { width: 90%; }
+  .sf-bar-91 { width: 91%; }
+  .sf-bar-92 { width: 92%; }
+  .sf-bar-93 { width: 93%; }
+  .sf-bar-94 { width: 94%; }
+  .sf-bar-95 { width: 95%; }
+  .sf-bar-96 { width: 96%; }
+  .sf-bar-97 { width: 97%; }
+  .sf-bar-98 { width: 98%; }
+  .sf-bar-99 { width: 99%; }
+  .sf-bar-100 { width: 100%; }
+}
