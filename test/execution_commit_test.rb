@@ -78,21 +78,23 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_equal "completed", OrderSaga.find_by_correlation(11).current_state
   end
 
-  test "transition_to an undeclared target raises UnknownStateError, leaving nothing committed" do
+  test "transition_to an undeclared target raises UnknownStateError, routed through retry policy, leaving nothing committed" do
     run_all(publish_rows(:bad_jump_started, bad_jump_id: 99))
     state_before = BadJumpSaga.find_by_correlation(99)
     assert_equal "mid", state_before.current_state
     version_before = state_before.version
 
     e = publish_rows(:bad_jump_tick, bad_jump_id: 99).first
-    # Task 7 will route unmatched block errors through the retry policy
-    # (exhaustion / no match -> a `failed` event); until then, handle_error
-    # simply re-raises, so the raise propagates straight out of Runner#call.
-    assert_raises(SagaForge::UnknownStateError) do
-      SagaForge::Execution::Runner.new(e).call
-    end
+    # BadJumpSaga declares no retry_policy, so the default step_default
+    # (retry_on: nil) matches UnknownStateError like any other block error:
+    # the first failure (attempts 1 of 3) is retried rather than raised.
+    outcome, wait = SagaForge::Execution::Runner.new(e).call
+    assert_equal :retry, outcome
+    assert wait.to_f.positive?
 
-    assert e.reload.pending?
+    e.reload
+    assert e.pending?
+    assert_equal 1, e.attempts
     state_after = state_before.reload
     assert_equal "mid", state_after.current_state
     assert_equal version_before, state_after.version

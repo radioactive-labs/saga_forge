@@ -83,9 +83,13 @@ module SagaForge
         [:retry, SagaForge.config.stall_wait]
       end
 
-      # Task 7 wires retry policies; until then block errors propagate loudly.
+      # Routes BLOCK errors through the resolved retry policy (§A.5):
+      # handler override -> class default -> RetryPolicy.step_default. Retryable
+      # -> event stays pending with bumped attempts/budgets, [:retry, backoff].
+      # Exhausted or unmatched -> event failed with captured error, [:done];
+      # nothing escapes to ActiveJob's dead-letter path.
       #
-      # Task 7 warning: this hook is for BLOCK errors only. ConcurrencyConflict
+      # Structural warning: this hook is for BLOCK errors only. ConcurrencyConflict
       # (raised only from commit!, and itself a SagaForge::Error subclass) is
       # deliberately caught by the method-level `rescue ConcurrencyConflict`
       # on execute! — which sits AFTER this hook in the call chain, catching
@@ -97,7 +101,29 @@ module SagaForge
       # never reaches handle_error and must never be routed through
       # retry-policy logic either.
       def handle_error(error, definition, handler)
-        raise error
+        policy = definition.retry_policy_for(handler)
+        attempts = event.attempts + 1
+        budgets = (event.retry_budgets || {}).dup
+        updates = {attempts: attempts}
+
+        backoff = policy.retry_backoff(error, attempts: attempts) do |budget_key|
+          budgets[budget_key] = budgets.fetch(budget_key, 0) + 1
+          updates[:retry_budgets] = budgets
+          budgets[budget_key]
+        end
+
+        if backoff
+          event.update!(**updates)
+          [:retry, backoff]
+        else
+          event.update!(**updates, status: :failed, error: {
+            "class" => error.class.name,
+            "message" => error.message.to_s.truncate(10_000),
+            "backtrace" => Array(error.backtrace).first(50)
+          })
+          Rails.logger.error { "[saga_forge] #{event.saga_class}##{event.correlation_id} #{event.event_name} failed: #{error.class}: #{error.message}" }
+          [:done]
+        end
       end
 
       def commit!(definition, state_row, current, entry_version, facade)
