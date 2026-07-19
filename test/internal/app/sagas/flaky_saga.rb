@@ -18,6 +18,7 @@ class FlakySaga < SagaForge::Base
     raise SubFlakyError if payload[:mode] == "sub_flaky"
     raise FatalError if payload[:mode] == "fatal"
     raise "unmatched" if payload[:mode] == "unmatched"
+    raise FatalError, "bad byte \xFF in here".dup.force_encoding(Encoding::ASCII_8BIT) if payload[:mode] == "binary"
     saga.context[:ok] = true
   end
   finish_with :flaky_done

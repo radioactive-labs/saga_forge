@@ -54,6 +54,13 @@ module SagaForge
       !!ActiveSupport::IsolatedExecutionState[:saga_forge_execution]
     end
 
+    # Encoding-safe truncation for persisting error text into JSON columns:
+    # arbitrary bytes (binary paths, HTTP bodies) must never crash the
+    # failure-recording path itself.
+    def safe_error_message(msg, limit)
+      msg.to_s.encode("UTF-8", invalid: :replace, undef: :replace, replace: "\u{FFFD}").truncate(limit)
+    end
+
     # Wrapped around user block invocation ONLY (forward, compensation, timeout
     # blocks). Footgun-catcher, not a sandbox.
     def guarding_execution

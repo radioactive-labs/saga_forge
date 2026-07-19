@@ -3,6 +3,9 @@ module SagaForge
     # Processes one pending ledger row through the §A.4 pipeline.
     # Returns [:done] | [:respin] | [:retry, seconds].
     class Runner
+      ERROR_MESSAGE_LIMIT = 10_000
+      BACKTRACE_LINES = 50
+
       attr_reader :event
 
       def initialize(event)
@@ -100,29 +103,41 @@ module SagaForge
       # unwinds via `throw :saga_forge_fail`, not a raised exception, so it
       # never reaches handle_error and must never be routed through
       # retry-policy logic either.
+      #
+      # The whole read-decide-write sequence runs under a row lock (like
+      # stall!'s atomic increment): two concurrent deliveries reading
+      # event.attempts from stale in-memory state would otherwise both count
+      # as "attempt 1", letting a saga burn more attempts than the policy's
+      # max_attempts bounds. with_lock reloads the row before the block runs,
+      # so attempts/retry_budgets read inside are fresh as of lock acquisition.
       def handle_error(error, definition, handler)
         policy = definition.retry_policy_for(handler)
-        attempts = event.attempts + 1
-        budgets = (event.retry_budgets || {}).dup
-        updates = {attempts: attempts}
 
-        backoff = policy.retry_backoff(error, attempts: attempts) do |budget_key|
-          budgets[budget_key] = budgets.fetch(budget_key, 0) + 1
-          updates[:retry_budgets] = budgets
-          budgets[budget_key]
-        end
+        event.with_lock do
+          return [:done] unless event.pending? # another delivery already resolved this row
 
-        if backoff
-          event.update!(**updates)
-          [:retry, backoff]
-        else
-          event.update!(**updates, status: :failed, error: {
-            "class" => error.class.name,
-            "message" => error.message.to_s.truncate(10_000),
-            "backtrace" => Array(error.backtrace).first(50)
-          })
-          Rails.logger.error { "[saga_forge] #{event.saga_class}##{event.correlation_id} #{event.event_name} failed: #{error.class}: #{error.message}" }
-          [:done]
+          attempts = event.attempts + 1
+          budgets = (event.retry_budgets || {}).dup
+          updates = {attempts: attempts}
+
+          backoff = policy.retry_backoff(error, attempts: attempts) do |budget_key|
+            budgets[budget_key] = budgets.fetch(budget_key, 0) + 1
+            updates[:retry_budgets] = budgets
+            budgets[budget_key]
+          end
+
+          if backoff
+            event.update!(**updates)
+            [:retry, backoff]
+          else
+            event.update!(**updates, status: :failed, error: {
+              "class" => error.class.name,
+              "message" => SagaForge.safe_error_message(error.message, ERROR_MESSAGE_LIMIT),
+              "backtrace" => Array(error.backtrace).first(BACKTRACE_LINES).map { |l| SagaForge.safe_error_message(l, 500) }
+            })
+            Rails.logger.error { "[saga_forge] #{event.saga_class}##{event.correlation_id} #{event.event_name} failed: #{error.class}" }
+            [:done]
+          end
         end
       end
 

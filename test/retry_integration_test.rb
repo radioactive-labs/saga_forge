@@ -70,4 +70,38 @@ class RetryIntegrationTest < SagaForge::TestCase
     assert_equal [:done], SagaForge::Execution::Runner.new(e.reload).call
     assert e.reload.processed?
   end
+
+  # Reproduces the lost-update hazard: two deliveries each load the row
+  # while attempts is still 0 (stale in-memory), then both hit handle_error's
+  # block-failure path. Without the row lock, both would independently
+  # compute attempts=1 and one increment would be lost. With the lock, the
+  # second delivery's with_lock reload sees the first's committed attempts,
+  # so the count is never lost — deterministic here because PlainRetrySaga's
+  # policy (max_attempts: 2) exhausts exactly on the counted 2nd attempt.
+  test "concurrent deliveries reading stale attempts never lose the increment" do
+    id = SecureRandom.hex(4)
+    first = SagaForge.publish(:plain_started, event_id: "p:#{id}", id: id).first
+
+    e1 = SagaForge::Event.find(first.id)
+    e2 = SagaForge::Event.find(first.id) # separate in-memory copy, also stale attempts: 0
+
+    outcome1, = SagaForge::Execution::Runner.new(e1).call
+    outcome2, = SagaForge::Execution::Runner.new(e2).call
+
+    assert_equal :retry, outcome1
+    assert_equal :done, outcome2
+
+    row = SagaForge::Event.find(first.id)
+    assert_equal 2, row.attempts
+    assert row.failed?
+  end
+
+  test "invalid-byte error message is scrubbed instead of crashing the failure write" do
+    e = row(mode: "binary")
+    assert_equal [:done], SagaForge::Execution::Runner.new(e).call
+    e.reload
+    assert e.failed?
+    assert_equal "FlakySaga::FatalError", e.error["class"]
+    assert_includes e.error["message"], "\u{FFFD}"
+  end
 end
