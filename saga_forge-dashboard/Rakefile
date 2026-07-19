@@ -1,0 +1,25 @@
+require "bundler/gem_tasks"
+require "rake/testtask"
+
+Rake::TestTask.new(:test) do |t|
+  t.libs << "test"
+  t.test_files = FileList["test/**/*_test.rb"]
+end
+
+namespace :tailwind do
+  desc "Compile the dashboard CSS from Tailwind source"
+  task :build do
+    require "tailwindcss/ruby"
+    src = "app/assets/saga_forge/dashboard/tailwind.css"
+    out = "app/assets/saga_forge/dashboard/dashboard.css"
+    sh "#{Tailwindcss::Ruby.executable} -i #{src} -o #{out} --minify"
+  end
+end
+
+# Never package stale CSS.
+Rake::Task["build"].enhance(["tailwind:build"]) if Rake::Task.task_defined?("build")
+
+require "standard/rake"
+task default: %i[test standard]
+
+Rake::Task["release"].clear if Rake::Task.task_defined?("release")
