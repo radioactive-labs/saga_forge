@@ -43,9 +43,19 @@ module SagaForge
       # DOES handle this event (i.e. a real recipient whose payload lacks the
       # correlation key) happens later, in #resolve, and still aborts the
       # whole publish as required.
+      #
+      # This should be unreachable in practice — the railtie force-compiles
+      # every registered class at boot/reload, so a broken saga crashes
+      # loudly long before any publish reaches here (§A.8). This rescue is
+      # defense-in-depth for non-railtie usage (the gem used standalone,
+      # without Rails booting it), so we still log loudly rather than skip
+      # in silence.
       def handler_for(klass, event)
         klass.definition.handler_for(event)
-      rescue Error
+      rescue Error => e
+        if defined?(Rails)
+          Rails.logger.error { "[saga_forge] #{klass.name} failed to compile its definition — skipped as recipient: #{e.class}: #{e.message}" }
+        end
         nil
       end
     end

@@ -7,6 +7,14 @@ require "test_helper"
 require_relative "support/multi_saga_file"
 
 class DefinitionTest < SagaForge::TestCase
+  # Several tests below create throwaway Class.new(SagaForge::Base) fixtures
+  # (including intentionally-broken ones) purely to exercise Definition
+  # validations. Base.inherited registers every one of them into the global
+  # Router, which would otherwise permanently pollute it for the rest of the
+  # test process. Snapshot/restore around each test instead.
+  setup { @router_snapshot = SagaForge::Router.saga_classes.dup }
+  teardown { SagaForge::Router.instance_variable_set(:@classes, @router_snapshot) }
+
   test "chain built from file order" do
     d = OrderSaga.definition
     assert_equal :order_placed, d.start_event
@@ -160,5 +168,32 @@ class DefinitionTest < SagaForge::TestCase
         finish_with :done
       end
     end
+  end
+
+  test "Router.recipients_for skips a class whose definition fails to compile, logging loudly" do
+    Class.new(SagaForge::Base) do
+      def self.name = "RouterBrokenSaga"
+      correlate_by :id
+      start_with(:router_broken_start) { |_, _| }
+      during(:a, on: :router_tick) { |_, _| }
+      during(:b, on: :router_tick) { |_, _| }
+      finish_with :done
+    end
+
+    messages = []
+    fake_logger = Object.new
+    fake_logger.define_singleton_method(:error) { |&blk| messages << blk.call }
+
+    original_logger = Rails.logger
+    Rails.logger = fake_logger
+    begin
+      result = SagaForge::Router.recipients_for(:router_tick)
+      assert_equal [], result.select { |k| k.name == "RouterBrokenSaga" }
+    ensure
+      Rails.logger = original_logger
+    end
+
+    assert(messages.any? { |m| m.include?("RouterBrokenSaga") },
+      "expected the skip to be logged, got: #{messages.inspect}")
   end
 end
