@@ -40,6 +40,12 @@ class ModelsTest < SagaForge::TestCase
     assert_equal [e1.id, e2.id], s.history.ids
   end
 
+  test "compensating scope" do
+    SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "c1", current_state: "compensating")
+    SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "c2", current_state: "awaiting")
+    assert_equal ["c1"], SagaForge::State.compensating.pluck(:correlation_id)
+  end
+
   test "json columns default to empty hashes on every adapter" do
     s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "d1", current_state: "waiting")
     assert_equal({}, s.reload.context)

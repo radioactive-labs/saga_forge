@@ -107,9 +107,61 @@ module SagaForge
     # jump. Anything we can't precisely locate is simply not drawn — a wrong
     # edge is worse than a missing one.
     def jump_targets
+      scan_handlers(/transition_to[\s(]+:(\w+)/).filter_map do |(state, captures)|
+        target = captures.first
+        next unless declared?(target)
+        from = (state == START) ? "[*]" : state
+        [from, target.to_sym]
+      end.uniq
+    end
+
+    # Best-effort literal scan for `stay` / `saga.stay` inside each handler
+    # block's exact extent (same scan_handlers machinery as jump_targets).
+    # Returns the set of states whose handler can loop. Computed/conditional
+    # stays the scan can't see are omitted, matching jump_targets' honesty.
+    def stay_targets
+      scan_handlers(/(?:^|[^.\w])(?:saga\.)?stay\b/).map { |(state, _match)| state }.uniq
+    end
+
+    # Structured graph (chain + jump + stay), the sibling of to_mermaid.
+    def to_graph
+      nodes = [SagaForge::Dashboard::Node.new(id: START.to_s, label: "start", kind: :start)]
+      (@states - @terminal_states).each do |s|
+        nodes << SagaForge::Dashboard::Node.new(id: s.to_s, label: s.to_s, kind: :state)
+      end
+      @terminal_states.each do |s|
+        nodes << SagaForge::Dashboard::Node.new(id: s.to_s, label: s.to_s, kind: :terminal)
+      end
+
+      edges = []
+      chain = [START] + (@states - @terminal_states) + [@terminal_states.first]
+      chain.each_cons(2) do |from, to|
+        label = (from == START) ? @start_event.to_s : events_for_state(from).join(" / ")
+        edges << SagaForge::Dashboard::Edge.new(from: from.to_s, to: to.to_s, kind: :chain, label: label)
+      end
+      jump_targets.each do |(from, to)|
+        from_id = (from == "[*]") ? START.to_s : from.to_s
+        edges << SagaForge::Dashboard::Edge.new(from: from_id, to: to.to_s, kind: :jump, label: "jump")
+      end
+      stay_targets.each do |state|
+        edges << SagaForge::Dashboard::Edge.new(from: state.to_s, to: state.to_s, kind: :stay, label: "stay")
+      end
+
+      SagaForge::Dashboard::Graph.new(nodes.freeze, edges.freeze).freeze
+    end
+
+    private
+
+    # Shared block-extent scanner for jump_targets/stay_targets. Yields, for
+    # every line within every handler's EXACT block extent, the handler's
+    # state paired with whatever String#scan produces for that regex (the
+    # full match, or its capture groups) — so two sagas sharing one file
+    # never cross-attribute a match. Anything we can't precisely locate is
+    # simply not scanned — a wrong edge is worse than a missing one.
+    def scan_handlers(regex)
       return [] unless defined?(RubyVM::InstructionSequence)
 
-      jumps = []
+      matches = []
       @handlers_by_event.each_value do |h|
         extent = block_extent(h.block)
         next unless extent
@@ -120,16 +172,11 @@ module SagaForge
         (first_lineno..last_lineno).each do |lineno|
           line = lines[lineno - 1]
           next unless line
-          line.scan(/transition_to[\s(]+:(\w+)/) do |(target)|
-            from = (h.state == START) ? "[*]" : h.state
-            jumps << [from, target.to_sym] if declared?(target)
-          end
+          line.scan(regex) { |m| matches << [h.state, m] }
         end
       end
-      jumps.uniq
+      matches
     end
-
-    private
 
     # [file, first_lineno, last_lineno] for a handler's block, or nil if the
     # exact extent can't be determined (no iseq, or no code_location — older

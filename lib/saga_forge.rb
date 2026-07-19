@@ -13,6 +13,13 @@ module SagaForge
     loader.setup
   end
 
+  # dashboard/graph.rb defines three constants (Graph, Node, Edge) in one
+  # file, which breaks Zeitwerk's one-file-one-constant autoload convention:
+  # only the file's "primary" constant (Graph, matching the filename) gets an
+  # autoload stub, so referencing Node or Edge first raises NameError. Require
+  # it eagerly here so all three are real constants before anything uses them.
+  require_relative "saga_forge/dashboard/graph"
+
   class Error < StandardError; end
 
   # Boot-time definition errors

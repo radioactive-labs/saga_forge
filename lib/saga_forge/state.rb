@@ -15,6 +15,7 @@ module SagaForge
     scope :in_state, ->(state) { where(current_state: state.to_s) }
     scope :stalled, -> { where(id: Event.stalled.select(:saga_forge_state_id)) }
     scope :suspended, -> { where(id: Event.failed.select(:saga_forge_state_id)) }
+    scope :compensating, -> { where(current_state: COMPENSATING.to_s) }
 
     def history = events.ledger_order
 
