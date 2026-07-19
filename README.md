@@ -4,7 +4,7 @@
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
 **Sagas for Rails on ActiveJob**: one Ruby file per workflow, a durable event
-ledger, out-of-order webhooks that heal themselves, and automatic rollback of
+ledger, out-of-order events that heal themselves, and automatic rollback of
 every committed step when something downstream fails.
 
 The moment a workflow spans more than one system ("charge the card, reserve
@@ -18,8 +18,9 @@ persists every incoming event before touching it, parks the ones that arrive
 early, commits each step atomically, and when a step declares failure, unwinds
 the steps that already committed, in reverse order.
 
-Headless by design: two tables, a handful of jobs, and plain Ruby classes.
-Works with any ActiveJob backend on Rails 7.1+.
+Two tables, a handful of jobs, plain Ruby classes, and no separate server to
+run. A management dashboard, in the style of ChronoForge's, is planned as a
+companion gem. Works with any ActiveJob backend on Rails 7.1+.
 
 ### 30-second tour
 
