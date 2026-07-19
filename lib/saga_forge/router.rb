@@ -2,6 +2,11 @@ module SagaForge
   # Boot-time event → saga-class registry + the shared row builder used by
   # both publish paths. Registration happens in Base.inherited; reset on
   # code reload (railtie to_prepare).
+  #
+  # No internal locking around @classes: register/reset!/compile_all! are
+  # only ever called from the main autoloader (Base.inherited during load,
+  # railtie to_prepare during reload), and Rails' reloader interlock already
+  # serializes those against request threads.
   class Router
     @classes = []
 
@@ -13,6 +18,12 @@ module SagaForge
       def reset! = @classes = []
 
       def saga_classes = @classes
+
+      # Forces every registered class to compile its Definition right now,
+      # so a broken saga (bad DSL, missing correlate_by, etc.) raises here —
+      # loudly, at boot/reload (§A.8) — instead of being silently skipped as
+      # a recipient the first time something happens to publish its event.
+      def compile_all! = saga_classes.each(&:definition)
 
       def recipients_for(event_name)
         event = event_name.to_sym

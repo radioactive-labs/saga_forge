@@ -196,4 +196,17 @@ class DefinitionTest < SagaForge::TestCase
     assert(messages.any? { |m| m.include?("RouterBrokenSaga") },
       "expected the skip to be logged, got: #{messages.inspect}")
   end
+
+  test "Router.compile_all! raises loudly when a registered saga's definition is broken" do
+    Class.new(SagaForge::Base) do
+      def self.name = "BootBrokenSaga"
+      correlate_by :id
+      start_with(:boot_broken_start) { |_, _| }
+      # no finish_with — NoTerminalStateError
+    end
+
+    assert_raises(SagaForge::NoTerminalStateError) do
+      SagaForge::Router.compile_all!
+    end
+  end
 end

@@ -62,4 +62,28 @@ class PublisherTest < SagaForge::TestCase
     end
     assert_equal 0, SagaForge::Event.where(event_id: "tx:1").count
   end
+
+  # insert_row's savepoint (transaction(requires_new: true)) exists to
+  # survive Postgres's abort-on-error semantics: on PG, a failed INSERT
+  # poisons the whole ambient transaction, so a duplicate-delivery no-op
+  # would otherwise take the caller's entire transaction down with it.
+  # SQLite doesn't abort the outer transaction on a unique-constraint
+  # violation, so this test can't reproduce THAT failure mode directly — but
+  # it still pins the intended contract: a duplicate publish inside an
+  # ambient transaction must leave that transaction usable for whatever
+  # comes after it.
+  test "duplicate publish inside an ambient transaction leaves the transaction usable" do
+    SagaForge.publish(:review_passed, event_id: "amb:1", order_id: 1)
+
+    SagaForge::ApplicationRecord.transaction do
+      dup = SagaForge.publish(:review_passed, event_id: "amb:1", order_id: 1)
+      assert_equal [], dup
+
+      fresh = SagaForge.publish(:review_passed, event_id: "amb:2", order_id: 1)
+      assert_equal 1, fresh.size
+    end
+
+    assert_equal 1, SagaForge::Event.where(event_id: "amb:1").count
+    assert_equal 1, SagaForge::Event.where(event_id: "amb:2").count
+  end
 end
