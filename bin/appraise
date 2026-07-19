@@ -1,2 +1,5 @@
-# bundle exec appraisal install
+#!/usr/bin/env bash
+set -e
+
+# Gemfiles must be current: bundle exec appraisal install
 bundle exec appraisal rake test
