@@ -1,0 +1,29 @@
+module SagaForge
+  module Dashboard
+    class AssetsController < BaseController
+      skip_before_action :authenticate!
+      skip_forgery_protection
+
+      TYPES = {
+        "dashboard.css" => "text/css",
+        "dashboard.js" => "application/javascript",
+        "turbo.min.js" => "application/javascript",
+        "cytoscape.min.js" => "application/javascript",
+        "dagre.min.js" => "application/javascript",
+        "cytoscape-dagre.js" => "application/javascript",
+        "saga_graph.js" => "application/javascript"
+      }.freeze
+      ROOT = SagaForge::Dashboard::Engine.root.join("app/assets/saga_forge/dashboard")
+
+      def show
+        file = params[:file]
+        type = TYPES[file] or return head(:not_found)
+        path = ROOT.join(file)
+        return head(:not_found) unless path.file?
+
+        response.set_header("Cache-Control", "public, max-age=31536000, immutable")
+        send_file path, type: type, disposition: "inline"
+      end
+    end
+  end
+end
