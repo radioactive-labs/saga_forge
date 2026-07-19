@@ -20,18 +20,37 @@ module SagaForge
 
     def saga_definition = saga_class.constantize.definition
 
+    # Status-scoped: the UPDATE only touches rows still :stalled, so a
+    # concurrent redeliver_parked landing a row on :processed between our
+    # SELECT and this write can never be regressed back to :pending (a step
+    # is compensable iff it committed — Task 8's invariant). Enqueueing an id
+    # that raced ahead to :processed is harmless (ExecutionJob/Runner no-op
+    # on an already-processed row).
     def retry_stalled!
-      events.stalled.ledger_order.each do |event|
-        event.update!(status: :pending, stall_count: 0)
-        ExecutionJob.perform_later(event.id)
+      if recovery_blocked?
+        Rails.logger.warn { "[saga_forge] retry_stalled! no-op on #{saga_class}##{correlation_id}: saga is #{current_state}" }
+        return false
       end
+
+      ids = events.stalled.ledger_order.ids
+      count = Event.where(id: ids, status: :stalled)
+        .update_all(status: :pending, stall_count: 0, updated_at: Time.current)
+      enqueue_execution(ids)
+      count > 0
     end
 
+    # Same status-scoping as retry_stalled! — see there.
     def resume!
-      events.failed.ledger_order.each do |event|
-        event.update!(status: :pending, attempts: 0, retry_budgets: {}, error: nil)
-        ExecutionJob.perform_later(event.id)
+      if recovery_blocked?
+        Rails.logger.warn { "[saga_forge] resume! no-op on #{saga_class}##{correlation_id}: saga is #{current_state}" }
+        return false
       end
+
+      ids = events.failed.ledger_order.ids
+      count = Event.where(id: ids, status: :failed)
+        .update_all(status: :pending, attempts: 0, retry_budgets: {}, error: nil, updated_at: Time.current)
+      enqueue_execution(ids)
+      count > 0
     end
 
     # Resume-then-compensate (§A.4): a failed step's side effects may have
@@ -43,7 +62,7 @@ module SagaForge
     # :compensating, false on a no-op (already terminal/compensating) — a
     # small deliberate API nicety for the dashboard phase.
     def compensate!(target: COMPENSATED, reason: nil)
-      if events.failed.exists?
+      if !recovery_blocked? && events.failed.exists?
         Rails.logger.warn do
           "[saga_forge] compensate! on #{saga_class}##{correlation_id} with failed events — " \
             "failed steps imply no compensation and left no context; resume!, then compensate"
@@ -52,7 +71,7 @@ module SagaForge
 
       transitioned = false
       with_lock do
-        break if saga_definition.terminal?(current_state) || current_state == COMPENSATING.to_s
+        break if recovery_blocked?
 
         context_copy = context.deep_dup
         meta = (context_copy["__saga_forge"] || {}).merge("target" => target.to_s)
@@ -67,6 +86,25 @@ module SagaForge
 
     def cancel!(reason:)
       compensate!(target: CANCELLED, reason: reason)
+    end
+
+    private
+
+    # Terminal or already-compensating: resuming/retrying a parked event here
+    # would orphan it forever (no future state transition will ever redeliver
+    # it — §A.3's redelivery only fires for the saga's live current_state).
+    def recovery_blocked?
+      saga_definition.terminal?(current_state) || current_state == COMPENSATING.to_s
+    end
+
+    # ActiveJob.perform_all_later (Rails 7.1+) enqueues in one batch instead
+    # of N; the :test adapter has no #enqueue_all so it transparently falls
+    # back to per-job #enqueue/#enqueue_at in the same order — verified
+    # empirically to behave identically to a bare .each { perform_later }
+    # under perform_enqueued_jobs/assert_enqueued_jobs.
+    def enqueue_execution(ids)
+      return if ids.empty?
+      ActiveJob.perform_all_later(ids.map { |id| ExecutionJob.new(id) })
     end
   end
 end

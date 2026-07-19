@@ -12,8 +12,14 @@ module SagaForge
         return if names.empty?
         Event.stalled.for_instance(state.saga_class, state.correlation_id)
           .where(event_name: names).ledger_order.each do |parked|
-          parked.update!(status: :pending, stall_count: 0)
-          ExecutionJob.perform_later(parked.id)
+          # Status-scoped: only flip rows still :stalled. A racing commit
+          # (another redeliver_parked, or this same row processed in the
+          # meantime) can move a row to :processed between the SELECT above
+          # and this write — the scope makes that race lose cleanly instead
+          # of regressing a committed row back to :pending.
+          updated = Event.where(id: parked.id, status: :stalled)
+            .update_all(status: :pending, stall_count: 0, updated_at: Time.current)
+          ExecutionJob.perform_later(parked.id) if updated > 0
         end
       end
 

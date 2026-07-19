@@ -64,8 +64,12 @@ module SagaForge
           state = states[event.correlation_id]
           next unless state
           next unless definition.state_for_event(event.event_name)&.to_s == state.current_state
-          event.update!(status: :pending, stall_count: 0)
-          ExecutionJob.perform_later(event.id)
+          # Status-scoped for the same reason as PostCommit#redeliver_parked:
+          # this event was loaded minutes ago (cutoff-aged); a live commit may
+          # have already processed it by the time the sweep gets here.
+          updated = Event.where(id: event.id, status: :stalled)
+            .update_all(status: :pending, stall_count: 0, updated_at: Time.current)
+          ExecutionJob.perform_later(event.id) if updated > 0
         end
       end
     end
