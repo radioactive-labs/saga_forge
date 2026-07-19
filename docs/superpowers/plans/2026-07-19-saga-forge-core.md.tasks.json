@@ -94,7 +94,7 @@
     {
       "id": 13,
       "subject": "Task 13: Durability tests, CI, README",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8, 9, 10, 11, 12],
       "description": "**Goal:** Torture tests (ghost cascade, exactly-once, version race), GitHub Actions sqlite+PG, Appraisals, README.\n\n```json:metadata\n{\"files\": [\"test/durability_test.rb\", \".github/workflows/main.yml\", \"README.md\"], \"verifyCommand\": \"bundle exec rake\", \"acceptanceCriteria\": [\"ghost cascade impossible\", \"exactly-once\", \"CI two lanes\", \"README with recurring.yml snippet\"], \"requiresUserVerification\": false}\n```"
     }
