@@ -171,7 +171,7 @@ Run a seeded preview locally (compiles the stylesheet, then boots a demo app
 covering every saga health state across two saga classes):
 
 ```bash
-bin/dev          # PORT=9978 bin/dev to use a different port
+bin/dev          # PORT=9090 bin/dev to use a different port
 ```
 
 It serves at `http://localhost:9977/saga_forge` by default.

@@ -2,8 +2,8 @@
 <%= form_with url: sagas_path, method: :get, enforce_utf8: false, class: "mb-4 flex flex-wrap items-center gap-2" do |f| %>
   <%= hidden_field_tag :class, @saga_class.name %>
   <% if params[:filter].present? %><%= hidden_field_tag :filter, params[:filter] %><% end %>
-  <%# data-cf-poll-preserve equivalent isn't wired for saga_forge's poll morph yet
-      (Task 6), but the field id keeps a stable target for future JS. %>
+  <%# A poll-morph "preserve this field's value across refreshes" hook isn't wired
+      up yet, but the stable field id keeps a target for that future JS. %>
   <%= f.text_field :q, value: params[:q], placeholder: "Correlation ID prefix…", id: "sf-filter-q", class: "rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-2.5 py-1.5 text-sm placeholder:text-[var(--sf-soft)]" %>
   <%= f.submit "Search", class: "sf-btn" %>
 <% end %>
