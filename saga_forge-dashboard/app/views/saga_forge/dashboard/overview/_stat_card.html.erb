@@ -1,0 +1,4 @@
+<%= link_to href, class: "sf-card block p-4 hover:border-[var(--sf-accent)]" do %>
+  <div class="text-xs uppercase tracking-wide text-[var(--sf-soft)]"><%= label %></div>
+  <div class="mt-1 font-mono text-2xl font-semibold tabular-nums <%= color %>"><%= number_with_delimiter(count) %></div>
+<% end %>

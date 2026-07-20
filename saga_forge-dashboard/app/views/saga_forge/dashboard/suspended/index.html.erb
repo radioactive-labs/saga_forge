@@ -1,0 +1,45 @@
+<h1 class="mb-1 text-lg font-semibold tracking-tight">Suspended sagas</h1>
+<p class="mb-5 text-sm text-[var(--sf-soft)]">
+  Instances (across every saga class) with at least one event that ran out of retries and landed in
+  <span class="font-mono">failed</span> — suspended pending a resume or compensate decision.
+</p>
+
+<div class="sf-card overflow-hidden">
+  <div class="overflow-x-auto">
+    <table class="w-full min-w-[42rem] text-sm">
+      <thead>
+        <tr class="border-b border-[var(--sf-border)] bg-[var(--sf-bg)] text-left text-xs uppercase tracking-wide text-[var(--sf-soft)]">
+          <th class="px-4 py-2.5 font-medium">Correlation ID</th>
+          <th class="px-4 py-2.5 font-medium">Class</th>
+          <th class="px-4 py-2.5 font-medium">State</th>
+          <th class="px-4 py-2.5 font-medium">Failed event</th>
+          <th class="px-4 py-2.5 text-right font-medium">Updated</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[var(--sf-border)]">
+        <% @states.each do |state| %>
+          <% ev = @failed_event[state.id] %>
+          <tr class="cursor-pointer bg-[var(--sf-badge-red-bg)]/40 hover:bg-[var(--sf-badge-red-bg)]" data-href="<%= saga_path(state) %>">
+            <td class="px-4 py-2.5"><%= link_to state.correlation_id, saga_path(state), class: "font-mono text-[var(--sf-fg)] hover:underline" %></td>
+            <td class="px-4 py-2.5 font-mono text-xs text-[var(--sf-soft)]"><%= state.saga_class %></td>
+            <td class="px-4 py-2.5"><%= state_badge(state.current_state) %></td>
+            <td class="px-4 py-2.5 font-mono text-xs text-[var(--sf-badge-red-fg)]">
+              <% if ev %>
+                <span class="text-[var(--sf-fg)]"><%= ev.event_name %></span>
+                — <%= ev.error["class"] %>: <%= ev.error["message"] %>
+              <% end %>
+            </td>
+            <td class="px-4 py-2.5 text-right text-xs text-[var(--sf-soft)]"><%= time_tag(state.updated_at) %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+  </div>
+  <% if @states.none? %>
+    <p class="px-4 py-12 text-center text-sm text-[var(--sf-soft)]">No suspended sagas — nothing has run out of retries.</p>
+  <% end %>
+</div>
+
+<% if @capped %>
+  <p class="mt-3 text-xs text-[var(--sf-soft)]">Showing the <%= SagaForge::Dashboard::SuspendedController::CAP %> most recently updated. Narrow with the per-class sagas list for more.</p>
+<% end %>

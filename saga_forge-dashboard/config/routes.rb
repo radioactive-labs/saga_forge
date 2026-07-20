@@ -2,6 +2,15 @@ SagaForge::Dashboard::Engine.routes.draw do
   root to: "sagas#index"
   resources :sagas, only: %i[index show]
 
+  # Fleet overview: a lazy-loaded turbo-frame shell (index) plus the frame it
+  # loads (classes), which carries the one GROUP BY query in its own request.
+  get "overview", to: "overview#index", as: :overview
+  scope "overview", as: :overview do
+    get "classes", to: "overview#classes"
+  end
+  resources :stalled, only: :index
+  resources :suspended, only: :index
+
   # Explicit allowlist (mirrors AssetsController::TYPES) so unknown assets 404 at
   # the routing layer rather than reaching the controller.
   # Do NOT anchor this regex with \A/\z: the segment is already anchored by the

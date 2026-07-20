@@ -1,0 +1,33 @@
+<div class="mb-5">
+  <h1 class="text-lg font-semibold tracking-tight">Overview</h1>
+  <p class="mt-1 text-sm text-[var(--sf-soft)]">Fleet-wide counts across every saga class, all time.</p>
+</div>
+
+<%# Cards are cheap independent COUNTs; the "Stalled"/"Suspended" cards link
+    straight to their dedicated triage pages. "Compensating" has no dedicated
+    fleet-wide page (sagas#index is scoped to one class), so it links into the
+    default class's list pre-filtered — a modest fallback until/unless a
+    fleet-wide compensating triage page exists. %>
+<div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
+  <%= render "stat_card", label: "All", count: @totals[:all], href: sagas_path,
+        color: "text-[var(--sf-fg)]" %>
+  <%= render "stat_card", label: "Stalled", count: @totals[:stalled], href: stalled_index_path,
+        color: (@totals[:stalled] > 0) ? "text-[var(--sf-badge-amber-fg)]" : "text-[var(--sf-fg)]" %>
+  <%= render "stat_card", label: "Suspended", count: @totals[:suspended], href: suspended_index_path,
+        color: (@totals[:suspended] > 0) ? "text-[var(--sf-badge-red-fg)]" : "text-[var(--sf-fg)]" %>
+  <%= render "stat_card", label: "Compensating", count: @totals[:compensating], href: sagas_path(filter: "compensating"),
+        color: "text-[var(--sf-fg)]" %>
+</div>
+
+<%# The per-class GROUP BY, isolated in its own lazily-loaded frame so it
+    streams in on its own clock without holding up the cards above. %>
+<turbo-frame id="sf-overview-classes" src="<%= overview_classes_path %>" loading="lazy" target="_top">
+  <div class="sf-card p-6">
+    <div class="h-4 w-40 animate-pulse rounded bg-[var(--sf-bg)]"></div>
+    <div class="mt-4 space-y-3">
+      <% 5.times do %>
+        <div class="h-3 w-full animate-pulse rounded bg-[var(--sf-bg)]"></div>
+      <% end %>
+    </div>
+  </div>
+</turbo-frame>

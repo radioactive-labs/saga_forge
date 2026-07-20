@@ -1,0 +1,37 @@
+<turbo-frame id="sf-overview-classes">
+  <div class="sf-card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[40rem] text-sm">
+        <thead>
+          <tr class="border-b border-[var(--sf-border)] bg-[var(--sf-bg)] text-left text-xs uppercase tracking-wide text-[var(--sf-soft)]">
+            <th class="px-4 py-2.5 font-medium">Class</th>
+            <th class="px-4 py-2.5 text-right font-medium">Total</th>
+            <th class="px-4 py-2.5 font-medium">By state</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--sf-border)]">
+          <% @rows.sort_by { |klass, _| klass }.each do |klass, states| %>
+            <tr class="hover:bg-[var(--sf-bg)]">
+              <td class="px-4 py-2.5">
+                <%= link_to klass, sagas_path(class: klass), class: "font-mono text-[var(--sf-fg)] hover:underline" %>
+              </td>
+              <td class="px-4 py-2.5 text-right font-mono tabular-nums"><%= number_with_delimiter(states.values.sum) %></td>
+              <td class="px-4 py-2.5">
+                <div class="flex flex-wrap gap-1.5">
+                  <% states.sort_by { |_, n| -n }.each do |state, n| %>
+                    <%= link_to sagas_path(class: klass, filter: state), class: "sf-badge sf-badge-slate" do %>
+                      <%= state %> <span class="opacity-70"><%= n %></span>
+                    <% end %>
+                  <% end %>
+                </div>
+              </td>
+            </tr>
+          <% end %>
+        </tbody>
+      </table>
+    </div>
+    <% if @rows.none? %>
+      <p class="px-4 py-12 text-center text-sm text-[var(--sf-soft)]">No sagas yet.</p>
+    <% end %>
+  </div>
+</turbo-frame>
