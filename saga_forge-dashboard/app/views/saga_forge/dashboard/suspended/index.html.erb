@@ -10,7 +10,8 @@
   <div class="mb-5 flex flex-wrap items-center gap-2">
     <% @saga_classes.each do |klass| %>
       <%= button_to "Resume all — #{klass}", bulk_action_path(saga_class: klass, mode: "resume"), method: :post,
-            form: {data: {confirm: "Resume every failed event for #{klass}? This re-fires each after assuming the underlying issue is fixed."}}, class: "sf-btn sf-btn-primary" %>
+            form: {data: {confirm: "Resume every failed event for #{klass}? This acts on ALL suspended instances of #{klass}, not just the #{SagaForge::Dashboard::SuspendedController::CAP} shown on this page, and re-fires each after assuming the underlying issue is fixed."}},
+            title: "Acts on every suspended instance of #{klass}, not only the rows shown on this page.", class: "sf-btn sf-btn-primary" %>
     <% end %>
   </div>
 <% end %>

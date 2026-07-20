@@ -16,7 +16,7 @@
     <% end %>
     <% if recoverable %>
       <%= button_to "Compensate", compensate_saga_path(@state), method: :post,
-            form: {data: {confirm: "Compensate #{@state.correlation_id}? This runs the saga's compensating steps and cannot be undone."}}, class: "sf-btn" %>
+            form: {data: {confirm: "Compensate #{@state.correlation_id}? This runs the saga's compensating steps and cannot be undone."}}, class: "sf-btn sf-btn-danger" %>
       <%= form_with url: cancel_saga_path(@state), method: :post, class: "flex items-center gap-1",
             data: {confirm: "Cancel #{@state.correlation_id}? This compensates the saga toward :cancelled and cannot be undone."} do |f| %>
         <%= f.text_field :reason, placeholder: "reason (optional)", class: "w-36 rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-2.5 py-1.5 text-xs placeholder:text-[var(--sf-soft)]" %>
