@@ -32,7 +32,7 @@
              ["Suspended", "#{request.script_name}/suspended"]
            ].each do |label, href| %>
           <% active = request.path == href %>
-          <a href="<%= href %>" <%= 'aria-current="page"' if active %> class="<%= active ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>"><%= label %></a>
+          <a href="<%= href %>"<% if active %> aria-current="page"<% end %> class="<%= active ? "font-medium text-[var(--sf-fg)]" : "text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>"><%= label %></a>
         <% end %>
       </nav>
       <div class="ml-auto flex flex-wrap items-center gap-2">
