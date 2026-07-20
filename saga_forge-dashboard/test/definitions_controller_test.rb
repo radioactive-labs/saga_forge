@@ -27,4 +27,17 @@ class DefinitionsControllerTest < SagaForge::Dashboard::TestCase
     assert_equal 200, last_response.status
     assert_includes last_response.body, "data-graph"
   end
+
+  # No namespaced saga fixture exists in the dummy app (adding one just for
+  # this route check would mean registering a throwaway class into the
+  # global Router for the rest of the process, per definition_graph_test.rb's
+  # comment in the core gem about that hazard). Instead, verify the route
+  # itself recognizes a "::"-containing class param end to end — the
+  # constraint (/[\w:]+/) exists specifically for Foo::BarSaga-shaped names.
+  test "the route recognizes a ::-containing class param" do
+    route = Rails.application.routes.recognize_path("/saga_forge/definitions/Foo::BarSaga", method: :get)
+    assert_equal "saga_forge/dashboard/definitions", route[:controller]
+    assert_equal "show", route[:action]
+    assert_equal "Foo::BarSaga", route[:class]
+  end
 end
