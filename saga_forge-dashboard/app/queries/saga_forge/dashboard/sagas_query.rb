@@ -42,13 +42,12 @@ module SagaForge
       end
 
       def filtered
-        s = base
         s = case @filter
-        when "stalled" then s.where(id: SagaForge::Event.stalled.select(:saga_forge_state_id))
-        when "suspended" then s.where(id: SagaForge::Event.failed.select(:saga_forge_state_id))
-        when "compensating" then s.where(current_state: "compensating")
-        when nil, "", "all" then s
-        else s.where(current_state: @filter)
+        when "stalled" then base.stalled
+        when "suspended" then base.suspended
+        when "compensating" then base.compensating
+        when nil, "", "all" then base
+        else base.where(current_state: @filter)
         end
         if @correlation
           s = s.where("correlation_id LIKE ?", "#{SagaForge::State.sanitize_sql_like(@correlation)}%")
@@ -64,6 +63,9 @@ module SagaForge
           rows = filtered.where("#{col} > ?", @after).order(id: :asc).limit(@per + 1).to_a
           @has_prev = rows.size > @per
           @records = rows.first(@per).reverse
+          # Reaching this page via a real prev_cursor means older rows exist (this
+          # page came from one); a stale/deleted-anchor cursor just self-heals to
+          # the first page on the next click, so hardcoding true here is safe.
           @has_next = true
         else
           scope = filtered

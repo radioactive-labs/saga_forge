@@ -11,9 +11,9 @@ module SagaForge
         base = SagaForge::State.for_saga(@saga_class)
         {
           all: capped(base),
-          stalled: capped(base.where(id: SagaForge::Event.stalled.select(:saga_forge_state_id))),
-          suspended: capped(base.where(id: SagaForge::Event.failed.select(:saga_forge_state_id))),
-          compensating: capped(base.where(current_state: "compensating"))
+          stalled: capped(base.stalled),
+          suspended: capped(base.suspended),
+          compensating: capped(base.compensating)
         }
       end
 

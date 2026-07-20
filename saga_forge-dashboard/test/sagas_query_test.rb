@@ -13,6 +13,16 @@ class SagasQueryTest < SagaForge::Dashboard::TestCase
     refute_equal q.records.map(&:id), q2.records.map(&:id)
   end
 
+  test "after cursor pages back to the newer rows in the right order" do
+    5.times { |i| mk("c#{i}") }
+    newest = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, per: 2)
+    older = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, per: 2, before: newest.next_cursor)
+    back = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, per: 2, after: older.prev_cursor)
+    assert_equal newest.records.map(&:id), back.records.map(&:id)
+    assert back.has_next?
+    refute back.has_prev?
+  end
+
   test "stalled filter composes the derived scope" do
     s = mk("s1")
     SagaForge::Event.create!(event_id: "e", saga_class: "DemoSaga", correlation_id: "s1",
