@@ -32,7 +32,9 @@ module SagaForge
       end
 
       # True when the event ledger was truncated to the most recent MAX_ENTRIES.
-      def truncated? = !!@truncated
+      # Side-effect-free (derived from total_event_count alone) so it gives the
+      # right answer even if called before entries/sorted have run.
+      def truncated? = total_event_count > MAX_ENTRIES
 
       def total_event_count = @total_event_count ||= @state.events.count
 
@@ -41,9 +43,7 @@ module SagaForge
       def meta = @state.context["__saga_forge"] || {}
 
       def event_entries
-        total = total_event_count
         rows = @state.history.last(MAX_ENTRIES)
-        @truncated = total > rows.size
         rows.each_with_index.map do |e, i|
           Entry.new(at: e.created_at, kind: :event, label: e.event_name, status: e.status,
             detail: {payload: e.payload, attempts: e.attempts, stall_count: e.stall_count,
