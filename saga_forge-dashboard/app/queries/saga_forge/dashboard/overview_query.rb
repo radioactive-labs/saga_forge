@@ -8,8 +8,7 @@ module SagaForge
     class OverviewQuery
       # {saga_class => {current_state => count}}. current_state is a plain
       # string column here (no enum), so the GROUP BY key is already the raw
-      # label — no enum int-vs-label normalization needed (unlike chrono's
-      # Workflow#state, which is an integer enum).
+      # label — no enum int-vs-label normalization needed.
       def rows
         SagaForge::State.group(:saga_class, :current_state).count
           .each_with_object(Hash.new { |h, k| h[k] = {} }) do |((klass, state), n), acc|

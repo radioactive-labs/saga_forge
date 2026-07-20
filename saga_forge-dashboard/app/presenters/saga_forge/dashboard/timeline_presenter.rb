@@ -1,6 +1,6 @@
 module SagaForge
   module Dashboard
-    # One chronological stream for a saga instance: the event ledger merged with
+    # One time-ordered stream for a saga instance: the event ledger merged with
     # the compensation progress the engine records in context["__saga_forge"].
     # The engine does not pre-merge these, so the dashboard owns it.
     class TimelinePresenter
