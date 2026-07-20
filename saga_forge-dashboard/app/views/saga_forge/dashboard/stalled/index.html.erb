@@ -1,8 +1,19 @@
 <h1 class="mb-1 text-lg font-semibold tracking-tight">Stalled sagas</h1>
-<p class="mb-5 text-sm text-[var(--sf-soft)]">
+<p class="mb-3 text-sm text-[var(--sf-soft)]">
   Instances (across every saga class) with at least one event parked in
   <span class="font-mono">stalled</span> — it exhausted its retry budget and is waiting to be retried.
 </p>
+
+<%# Bulk retry is scoped to one saga class, so offer a button per class
+    present in the list rather than a single all-classes action. %>
+<% if @saga_classes.any? %>
+  <div class="mb-5 flex flex-wrap items-center gap-2">
+    <% @saga_classes.each do |klass| %>
+      <%= button_to "Retry all stalled — #{klass}", bulk_action_path(saga_class: klass, mode: "retry_stalled"), method: :post,
+            form: {data: {confirm: "Retry every stalled event for #{klass}? This re-delivers each parked event."}}, class: "sf-btn sf-btn-primary" %>
+    <% end %>
+  </div>
+<% end %>
 
 <div class="sf-card overflow-hidden">
   <div class="overflow-x-auto">

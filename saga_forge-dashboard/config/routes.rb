@@ -1,6 +1,18 @@
 SagaForge::Dashboard::Engine.routes.draw do
   root to: "sagas#index"
-  resources :sagas, only: %i[index show]
+  resources :sagas, only: %i[index show] do
+    member do
+      post :retry_stalled, to: "actions#retry_stalled"
+      post :resume, to: "actions#resume"
+      post :compensate, to: "actions#compensate"
+      post :cancel, to: "actions#cancel"
+    end
+  end
+
+  # Bulk recovery, scoped to one saga class (the stalled/suspended lists are
+  # cross-class, so the class is named explicitly rather than inferred).
+  post "bulk/:saga_class/:mode", to: "actions#bulk", as: :bulk_action,
+    constraints: {saga_class: /[\w:]+/, mode: /retry_stalled|resume/}
 
   # Fleet overview: a lazy-loaded turbo-frame shell (index) plus the frame it
   # loads (classes), which carries the one GROUP BY query in its own request.

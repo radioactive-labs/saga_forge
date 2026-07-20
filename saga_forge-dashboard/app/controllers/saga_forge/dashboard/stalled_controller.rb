@@ -18,6 +18,11 @@ module SagaForge
           .ledger_order
           .pluck(:saga_forge_state_id, :event_name)
           .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(id, name), acc| acc[id] << name }
+
+        # The list is cross-class, but bulk retry is scoped to one class (the
+        # BulkRecoveryJob derives its scope from State.for_saga(klass)) — so
+        # offer one "retry all" button per distinct class present here.
+        @saga_classes = @states.map(&:saga_class).uniq.sort
       end
     end
   end

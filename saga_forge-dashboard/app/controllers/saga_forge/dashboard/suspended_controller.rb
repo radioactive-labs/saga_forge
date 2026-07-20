@@ -22,6 +22,11 @@ module SagaForge
           .ledger_order
           .to_a
         @failed_event = failed.group_by(&:saga_forge_state_id).transform_values(&:first)
+
+        # The list is cross-class, but bulk resume is scoped to one class (the
+        # BulkRecoveryJob derives its scope from State.for_saga(klass)) — so
+        # offer one "resume all" button per distinct class present here.
+        @saga_classes = @states.map(&:saga_class).uniq.sort
       end
     end
   end

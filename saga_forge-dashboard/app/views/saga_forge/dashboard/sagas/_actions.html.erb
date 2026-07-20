@@ -1,0 +1,27 @@
+<%# Operator actions for one saga instance. Retry stalled / Resume only make
+    sense when there's something eligible (@stalled / @suspended, set by
+    SagasController#show); Compensate / Cancel are shown whenever the saga
+    isn't already terminal or mid-compensation — same "recovery blocked" line
+    the model itself uses to no-op, kept here only for button visibility
+    (the model is still the enforcement point; a stale button just flashes
+    "Nothing to do."). Both require confirmation since they're one-way. %>
+<% recoverable = !@state.saga_definition.terminal?(@state.current_state) && @state.current_state != SagaForge::State::COMPENSATING.to_s %>
+<% if @stalled || @suspended || recoverable %>
+  <div class="flex flex-wrap items-center gap-2">
+    <% if @stalled %>
+      <%= button_to "Retry stalled", retry_stalled_saga_path(@state), method: :post, class: "sf-btn sf-btn-primary" %>
+    <% end %>
+    <% if @suspended %>
+      <%= button_to "Resume", resume_saga_path(@state), method: :post, class: "sf-btn sf-btn-primary" %>
+    <% end %>
+    <% if recoverable %>
+      <%= button_to "Compensate", compensate_saga_path(@state), method: :post,
+            form: {data: {confirm: "Compensate #{@state.correlation_id}? This runs the saga's compensating steps and cannot be undone."}}, class: "sf-btn" %>
+      <%= form_with url: cancel_saga_path(@state), method: :post, class: "flex items-center gap-1",
+            data: {confirm: "Cancel #{@state.correlation_id}? This compensates the saga toward :cancelled and cannot be undone."} do |f| %>
+        <%= f.text_field :reason, placeholder: "reason (optional)", class: "w-36 rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-2.5 py-1.5 text-xs placeholder:text-[var(--sf-soft)]" %>
+        <%= f.submit "Cancel", class: "sf-btn sf-btn-danger" %>
+      <% end %>
+    <% end %>
+  </div>
+<% end %>
