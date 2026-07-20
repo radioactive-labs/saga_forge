@@ -11,6 +11,10 @@ SagaForge::Dashboard::Engine.routes.draw do
   resources :stalled, only: :index
   resources :suspended, only: :index
 
+  # The per-class state-machine graph, keyed by fully-qualified saga class
+  # name (which may contain "::"), with an optional ?correlation_id= overlay.
+  get "definitions/:class", to: "definitions#show", as: :saga_definition, constraints: {class: /[\w:]+/}
+
   # Explicit allowlist (mirrors AssetsController::TYPES) so unknown assets 404 at
   # the routing layer rather than reaching the controller.
   # Do NOT anchor this regex with \A/\z: the segment is already anchored by the

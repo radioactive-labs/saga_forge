@@ -1,11 +1,3 @@
-<%#
-  Definition-graph link is hardcoded here because saga_definition_path
-  (definitions#show) doesn't exist until Task 7. Swap this for
-  saga_definition_path(@state.saga_class, correlation_id: @state.correlation_id)
-  once that route lands.
-%>
-<% graph_url = "#{request.script_name}/definitions/#{@state.saga_class}?correlation_id=#{ERB::Util.url_encode(@state.correlation_id)}" %>
-
 <div class="sf-card p-4">
   <div class="flex flex-wrap items-center justify-between gap-3 text-sm">
     <dl class="flex flex-wrap gap-x-6 gap-y-1.5">
@@ -26,7 +18,7 @@
         <dd><%= time_tag(@state.updated_at) %></dd>
       </div>
     </dl>
-    <%= link_to "Definition graph ›", graph_url, class: "sf-btn" %>
+    <%= link_to "Definition graph ›", saga_definition_path(class: @state.saga_class, correlation_id: @state.correlation_id), class: "sf-btn" %>
   </div>
 
   <% if @stalled || @suspended || @comp_error.present? %>

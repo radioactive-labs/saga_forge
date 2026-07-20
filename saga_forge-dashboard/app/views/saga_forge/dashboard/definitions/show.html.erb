@@ -1,0 +1,51 @@
+<div class="mb-4 flex items-center justify-between">
+  <div>
+    <h1 class="text-lg font-semibold tracking-tight">State machine</h1>
+    <p class="font-mono text-sm text-[var(--sf-soft)]"><%= @saga_class.name %></p>
+  </div>
+  <% if @state %>
+    <%= link_to "‹ #{@state.correlation_id}", saga_path(@state), class: "sf-btn" %>
+  <% else %>
+    <%= link_to "‹ #{@saga_class.name}", sagas_path(class: @saga_class.name), class: "sf-btn" %>
+  <% end %>
+</div>
+
+<div class="sf-card overflow-hidden">
+  <div class="flex flex-wrap items-center gap-x-4 gap-y-1.5 border-b border-[var(--sf-border)] px-4 py-2.5 text-[11px] text-[var(--sf-soft)]">
+    <span class="inline-flex items-center gap-1.5">
+      <span class="inline-block h-3 w-4 border-t-2 border-[var(--sf-soft)]"></span>chain (event handler order)
+    </span>
+    <span class="inline-flex items-center gap-1.5">
+      <span class="sf-legend-dash inline-block h-3 w-4 border-t-2 border-dashed border-[#8b5cf6]"></span>jump (<code>transition_to</code>)
+    </span>
+    <span class="inline-flex items-center gap-1.5">
+      <span class="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#94a3b8]"></span>stay (self-loop)
+    </span>
+    <% {active: "current", processed: "processed event", stalled: "stalled event", failed: "failed event", none: "untouched"}.each do |status, label| %>
+      <span class="inline-flex items-center gap-1.5">
+        <span class="h-2.5 w-2.5 rounded-sm border sf-legend-<%= status %>"></span><%= label %>
+      </span>
+    <% end %>
+  </div>
+  <p class="border-b border-[var(--sf-border)] px-4 py-2 text-[11px] text-[var(--sf-soft)]">
+    Jump and stay edges are best-effort: they're detected by scanning handler source for a
+    literal <code>transition_to</code> / <code>stay</code>, so a computed or conditional
+    transition may not appear here even though the saga can take it at runtime.
+  </p>
+  <%# The graph is passed as JSON in a data attribute — ERB-escaped, so labels
+      round-trip through the DOM untouched. %>
+  <div id="sf-graph" data-graph="<%= @graph.to_json %>" class="h-[68vh] w-full bg-[var(--sf-bg)]"></div>
+  <div id="sf-graph-detail" class="min-h-[3rem] border-t border-[var(--sf-border)] bg-[var(--sf-surface)] px-4 py-3 text-xs"></div>
+</div>
+
+<style>
+  .sf-legend-active{background:var(--sf-badge-indigo-bg);border-color:var(--sf-badge-indigo-border)}
+  .sf-legend-processed{background:var(--sf-badge-green-bg);border-color:var(--sf-badge-green-border)}
+  .sf-legend-stalled{background:var(--sf-badge-amber-bg);border-color:var(--sf-badge-amber-border)}
+  .sf-legend-failed{background:var(--sf-badge-red-bg);border-color:var(--sf-badge-red-border)}
+  .sf-legend-none{background:var(--sf-badge-slate-bg);border-color:var(--sf-badge-slate-border)}
+</style>
+
+<% %w[cytoscape.min.js dagre.min.js cytoscape-dagre.js saga_graph.js].each do |asset| %>
+  <script src="<%= "#{request.script_name}/assets/#{asset}?v=#{SagaForge::Dashboard.asset_digest(asset)}" %>"></script>
+<% end %>
