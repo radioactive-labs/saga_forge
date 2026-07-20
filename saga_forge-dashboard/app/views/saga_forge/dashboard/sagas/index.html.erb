@@ -1,2 +1,46 @@
-<h1>Sagas</h1>
-<ul><% @saga_classes.each do |k| %><li><%= k.name %></li><% end %></ul>
+<div class="mb-5 flex items-center justify-between">
+  <h1 class="text-lg font-semibold tracking-tight">Sagas</h1>
+  <%# Plain GET select — no JS dependency for the core navigation path. %>
+  <%= form_with url: sagas_path, method: :get, class: "flex items-center gap-2" do |f| %>
+    <select name="class" data-autosubmit class="rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-2 py-1.5 text-sm">
+      <% @saga_classes.each do |k| %>
+        <option value="<%= k.name %>" <%= "selected" if k == @saga_class %>><%= k.name %></option>
+      <% end %>
+    </select>
+    <%= f.submit "Go", class: "sf-btn" %>
+  <% end %>
+</div>
+
+<div>
+  <%= render "stats", stats: @stats %>
+  <%= render "filters" %>
+
+  <div class="sf-card overflow-hidden">
+    <div class="overflow-x-auto">
+      <table class="w-full min-w-[36rem] text-sm">
+        <thead>
+          <tr class="border-b border-[var(--sf-border)] bg-[var(--sf-bg)] text-left text-xs uppercase tracking-wide text-[var(--sf-soft)]">
+            <th class="px-4 py-2.5 font-medium">Correlation ID</th>
+            <th class="px-4 py-2.5 font-medium">State</th>
+            <th class="px-4 py-2.5 text-right font-medium">Version</th>
+            <th class="px-4 py-2.5 text-right font-medium">Updated</th>
+          </tr>
+        </thead>
+        <tbody class="divide-y divide-[var(--sf-border)]">
+          <%= render partial: "saga_row", collection: @query.records, as: :row %>
+        </tbody>
+      </table>
+    </div>
+    <% if @query.records.none? %>
+      <p class="px-4 py-12 text-center text-sm text-[var(--sf-soft)]">No sagas match these filters.</p>
+    <% end %>
+  </div>
+
+  <% base_params = {class: @saga_class.name} %>
+  <% base_params[:filter] = params[:filter] if params[:filter].present? %>
+  <% base_params[:q] = params[:q] if params[:q].present? %>
+  <nav class="mt-4 flex items-center justify-between text-sm">
+    <% if @query.has_prev? %><%= link_to "‹ Newer", sagas_path(base_params.merge(after: @query.prev_cursor)), class: "sf-btn" %><% else %><span></span><% end %>
+    <% if @query.has_next? %><%= link_to "Older ›", sagas_path(base_params.merge(before: @query.next_cursor)), class: "sf-btn" %><% else %><span></span><% end %>
+  </nav>
+</div>

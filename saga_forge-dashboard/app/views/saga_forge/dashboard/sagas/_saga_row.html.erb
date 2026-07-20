@@ -1,0 +1,6 @@
+<tr class="cursor-pointer hover:bg-[var(--sf-bg)]" data-href="<%= saga_path(row) %>">
+  <td class="px-4 py-2.5"><%= link_to row.correlation_id, saga_path(row), class: "font-mono text-[var(--sf-fg)] hover:underline" %></td>
+  <td class="px-4 py-2.5"><%= state_badge(row.current_state) %></td>
+  <td class="px-4 py-2.5 text-right font-mono text-xs text-[var(--sf-soft)]"><%= row.version %></td>
+  <td class="px-4 py-2.5 text-right text-xs text-[var(--sf-soft)]"><%= time_tag(row.updated_at) %></td>
+</tr>

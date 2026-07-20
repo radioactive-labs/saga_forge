@@ -1,0 +1,11 @@
+<div class="mb-4 flex flex-wrap gap-2">
+  <% base = {class: @saga_class.name} %>
+  <% base[:q] = params[:q] if params[:q].present? %>
+  <% stats.counts.each do |key, n| %>
+    <% href = (key == :all) ? base : base.merge(filter: key) %>
+    <% active = (key == :all) ? params[:filter].blank? : params[:filter].to_s == key.to_s %>
+    <%= link_to sagas_path(href), class: "sf-badge #{active ? "sf-badge-indigo" : "sf-badge-slate"}" do %>
+      <%= key %> <span class="opacity-70"><%= stats.label(n) %></span>
+    <% end %>
+  <% end %>
+</div>
