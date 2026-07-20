@@ -4,68 +4,68 @@
     {
       "id": 0,
       "subject": "Task 0: Sub-gem scaffold, engine, config, harness",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Bootable SagaForge::Dashboard engine mounting in a Combustion dummy app; smoke test 200.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/saga_forge-dashboard.gemspec\", \"saga_forge-dashboard/lib/saga_forge/dashboard.rb\", \"saga_forge-dashboard/test/test_helper.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake\", \"acceptanceCriteria\": [\"smoke 200 at mount\", \"config round-trips\", \"standard clean\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 1,
       "subject": "Task 1: Core-gem Definition#to_graph, stay_targets, State.compensating",
-      "status": "pending",
+      "status": "completed",
       "description": "**Goal:** Structured graph DTO + stay scan + compensating scope in the CORE saga_forge gem.\n\n```json:metadata\n{\"files\": [\"lib/saga_forge/dashboard/graph.rb\", \"lib/saga_forge/definition.rb\", \"lib/saga_forge/state.rb\"], \"verifyCommand\": \"cd /Users/stefan/Documents/plutonium/saga_forge && bundle exec rake test TEST=test/definition_graph_test.rb\", \"acceptanceCriteria\": [\"typed edges chain/jump/stay\", \"stay self-loop\", \"compensating scope\", \"frozen graph\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 2,
       "subject": "Task 2: Auth + assets chassis",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [0],
       "description": "**Goal:** Fail-closed auth + controller-served digest-busted assets.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/controllers/saga_forge/dashboard/assets_controller.rb\", \"saga_forge-dashboard/config/routes.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/auth_test.rb TEST=test/assets_test.rb\", \"acceptanceCriteria\": [\"fail-closed\", \"three auth modes\", \"immutable assets\", \"route allowlist\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 3,
       "subject": "Task 3: Layout, helper, Tailwind, poll refresh",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [2],
       "description": "**Goal:** Shared layout chrome, DashboardHelper, compiled Tailwind (indigo), turbo-morph refresh.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/views/layouts/saga_forge/dashboard/application.html.erb\", \"saga_forge-dashboard/app/helpers/saga_forge/dashboard/dashboard_helper.rb\", \"saga_forge-dashboard/app/assets/saga_forge/dashboard/tailwind.css\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake\", \"acceptanceCriteria\": [\"layout chrome + digests\", \"helper badges/bar/bytes\", \"tailwind builds\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 4,
       "subject": "Task 4: SagasQuery + StatsQuery + sagas#index",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** Keyset-paginated filterable saga list with capped state counts.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/queries/saga_forge/dashboard/sagas_query.rb\", \"saga_forge-dashboard/app/queries/saga_forge/dashboard/stats_query.rb\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/sagas_controller.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/sagas_query_test.rb TEST=test/sagas_index_test.rb\", \"acceptanceCriteria\": [\"keyset no-COUNT\", \"derived-scope filters\", \"prefix search escaped\", \"capped counts\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 5,
       "subject": "Task 5: TimelinePresenter + ContextPresenter + sagas#show",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [4],
       "description": "**Goal:** Saga detail: merged event+compensation timeline, context tree, health callouts.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/presenters/saga_forge/dashboard/timeline_presenter.rb\", \"saga_forge-dashboard/app/presenters/saga_forge/dashboard/context_presenter.rb\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/sagas_controller.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/timeline_presenter_test.rb TEST=test/sagas_show_test.rb\", \"acceptanceCriteria\": [\"merged timeline\", \"context split\", \"health flags\", \"failed error+traceback\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 6,
       "subject": "Task 6: Overview, stalled, suspended pages",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3],
       "description": "**Goal:** Fleet overview (class x state, lazy frame) + stalled/suspended triage lists.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/queries/saga_forge/dashboard/overview_query.rb\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/overview_controller.rb\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/stalled_controller.rb\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/suspended_controller.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/overview_query_test.rb TEST=test/stalled_test.rb TEST=test/suspended_test.rb\", \"acceptanceCriteria\": [\"group-by fleet + totals\", \"lazy turbo-frame\", \"triage lists with detail\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 7,
       "subject": "Task 7: SagaGraph + saga_graph.js + definitions#show",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [3, 1],
       "description": "**Goal:** State-machine graph with per-instance overlay via cytoscape; node attribution via definition.state_for_event.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/presenters/saga_forge/dashboard/saga_graph.rb\", \"saga_forge-dashboard/app/assets/saga_forge/dashboard/saga_graph.js\", \"saga_forge-dashboard/app/controllers/saga_forge/dashboard/definitions_controller.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/saga_graph_test.rb TEST=test/definitions_controller_test.rb\", \"acceptanceCriteria\": [\"cytoscape kind/status classes\", \"overlay active state\", \"graph renders\", \"unknown class friendly\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 8,
       "subject": "Task 8: Actions controller + BulkRecoveryJob",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [5, 6, 7],
       "description": "**Goal:** Four operator actions + bulk variants, POST/CSRF/confirm-guarded.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/app/controllers/saga_forge/dashboard/actions_controller.rb\", \"saga_forge-dashboard/app/jobs/saga_forge/dashboard/bulk_recovery_job.rb\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake test TEST=test/actions_test.rb TEST=test/bulk_recovery_job_test.rb\", \"acceptanceCriteria\": [\"four actions + flash\", \"no-op message\", \"bulk job iterates scope\", \"POST-only\"], \"requiresUserVerification\": false}\n```"
     },
     {
       "id": 9,
       "subject": "Task 9: Preview server, README, release tooling",
-      "status": "pending",
+      "status": "completed",
       "blockedBy": [8],
       "description": "**Goal:** bin/dev seeded preview, README (angarium standard, no em dashes), release task, full green + gem builds.\n\n```json:metadata\n{\"files\": [\"saga_forge-dashboard/config.ru\", \"saga_forge-dashboard/bin/dev\", \"saga_forge-dashboard/README.md\"], \"verifyCommand\": \"cd saga_forge-dashboard && bundle exec rake\", \"acceptanceCriteria\": [\"bin/dev seeds + serves\", \"README complete no em dashes\", \"rake green\", \"gem builds\"], \"requiresUserVerification\": false}\n```"
     }

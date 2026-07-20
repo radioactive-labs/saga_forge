@@ -1750,4 +1750,12 @@ T5, T6, T7 ── T8 (actions) ── T9 (preview/readme/release)
 - Spec coverage: §1 repo/packaging → T0; §2 chassis → T0/T2/T3; §3 core additions → T1; §4 queries/presenters → T4/T5/T6/T7; §5 pages → T4/T5/T6/T7; §6 graph → T1/T7; §7 actions → T8; §8 testing → every task + T9; §9 deferred → untouched.
 - No user-verification requirement (automated tests + developer-driven preview), so no verification task.
 - The one genuine risk is the `SagaGraph` event→node attribution: the plan resolves it exactly via `definition.state_for_event` (Task 7 wrinkle), not label-splitting.
+
+## Known follow-ups (surfaced during review, deliberately deferred)
+
+- **Overview stat-card counts aren't in the lazy frame** (Task 6 review). `overview#index` computes the four totals synchronously, and the `stalled`/`suspended` counts touch `saga_forge_events`, so on a very large fleet the non-lazy shell can be slow even though the GROUP BY is isolated in its frame. Plan-sanctioned "simplify now"; if scale demands, move the stat cards into their own lazy turbo-frame.
+- **No fleet-wide `compensating` triage page** (Task 6 review). The overview's Compensating card falls back to `sagas_path(filter: "compensating")` on the first saga class. Add a dedicated cross-class page if operators need it.
+- **Triage controller duplication** (Task 6 review). `StalledController`/`SuspendedController` share the CAP/order/batch-load shape; extract a shared helper if a third triage page lands (rule of three).
+- **`Definition#to_graph` re-scans handler source per request** (Task 7 review). `to_graph` (and its `jump_targets`/`stay_targets`) re-run the `RubyVM::InstructionSequence` block-extent scan on every graph-page load, and the `data-graph` JSON is inlined into an HTML attribute. Fine for realistic saga sizes (a handful to a few dozen states); if sagas ever rival chrono workflow sizes, cache the compiled graph and/or fetch it via a frame instead of inlining.
+- **saga_graph.js shares cytoscape boilerplate with chrono's definition_graph.js** (Task 7 review). Two independent gems today; a shared JS helper is a cross-repo call if the interaction logic ever needs to stay in lockstep.
 ```
