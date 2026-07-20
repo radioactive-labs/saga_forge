@@ -3,7 +3,7 @@ module SagaForge
     # The per-class state-machine graph (chain + best-effort jump/stay edges),
     # with one saga instance's status overlaid onto the nodes when a
     # correlation_id is given. An unknown saga class is a routing fact of
-    # life (typo'd URL, renamed/removed class), not a 500 — it renders a
+    # life (typo'd URL, renamed/removed class), not a 500. It renders a
     # friendly empty state instead.
     class DefinitionsController < BaseController
       def show

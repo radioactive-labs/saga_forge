@@ -17,7 +17,7 @@
           <tr>
             <td class="px-4 py-2 font-mono"><%= node.key %></td>
             <td class="px-4 py-2"><span class="sf-badge sf-badge-slate"><%= node.type %></span></td>
-            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.bytes ? format_bytes(node.bytes) : "—" %></td>
+            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.bytes ? format_bytes(node.bytes) : "n/a" %></td>
             <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.preview %></td>
           </tr>
         <% end %>

@@ -10,7 +10,7 @@
   //      future rows.
   //   2. Per-page setup (the poll timer, flash auto-dismiss) must re-run after
   //      every visit, so it lives in a `turbo:load` handler rather than at the
-  //      top level — top-level code runs only when the script first executes.
+  //      top level, since top-level code runs only when the script first executes.
   if (!window.__sagaForgeDashboard) {
     window.__sagaForgeDashboard = true;
 
@@ -71,7 +71,7 @@
     });
 
     // Leave the filter inputs untouched during the polling morph refresh. Skipping
-    // the element (rather than letting idiomorph reconcile it) keeps it in place —
+    // the element (rather than letting idiomorph reconcile it) keeps it in place,
     // so a value the user is typing, its caret, and focus all survive a tick
     // instead of being reset to the last-submitted server value.
     document.addEventListener("turbo:before-morph-element", function (e) {
@@ -97,7 +97,7 @@
     // previous one so a navigation doesn't leave two running. Gate on the
     // [data-poll-region] attribute, not the #sf-poll-region id: the id is always
     // on <main> (it's the morph target), but the attribute is present only on
-    // pages that opt into polling — the definition graph opts out so its live
+    // pages that opt into polling; the definition graph opts out so its live
     // Cytoscape canvas isn't morphed away.
     if (window.__sagaForgePoll) clearInterval(window.__sagaForgePoll);
     var body = document.body, interval = parseInt(body.getAttribute("data-poll-interval") || "0", 10) * 1000;
@@ -110,7 +110,7 @@
   //
   // The refresh is a Turbo morph stream, not an innerHTML swap: idiomorph mutates
   // the existing nodes in place instead of recreating them, so horizontal scroll,
-  // focus, caret, and in-progress filter text all survive the update for free —
+  // focus, caret, and in-progress filter text all survive the update for free,
   // no manual preservation. `update` with method="morph" morphs the region's
   // contents while leaving the <main id> wrapper (and its data-poll-region hook)
   // untouched. Scoped to the region (not a whole-page refresh) so the header and

@@ -7,7 +7,7 @@
   <link rel="stylesheet" href="<%= "#{request.script_name}/assets/dashboard.css?v=#{SagaForge::Dashboard.asset_digest("dashboard.css")}" %>">
   <%# Turbo drives all navigation and form submits (SPA-style, no full reloads).
       It lives in <head> so Turbo Drive keeps it across body swaps and never
-      re-initialises it — a body <script> would re-run on every visit. %>
+      re-initialises it; a body <script> would re-run on every visit. %>
   <script src="<%= request.script_name %>/assets/turbo.min.js?v=<%= SagaForge::Dashboard.asset_digest("turbo.min.js") %>"></script>
 </head>
 <body class="min-h-screen bg-[var(--sf-bg)] font-sans text-[var(--sf-fg)] antialiased" data-poll-interval="<%= poll_interval %>">
@@ -58,9 +58,9 @@
   </header>
   <%# data-poll-region / id: the JS morph-refreshes this region in place (idiomorph
       preserves filter text, focus, and scroll). Marking <main> makes pages refresh
-      — the nav and the refresh/time controls sit in <header>, outside the morph. A
-      page can opt out (poll_region? false) when an in-place refresh would break it
-      (e.g. the definition graph's live Cytoscape canvas). %>
+      in place; the nav and the refresh/time controls sit in <header>, outside the
+      morph. A page can opt out (poll_region? false) when an in-place refresh would
+      break it (e.g. the definition graph's live Cytoscape canvas). %>
   <main id="sf-poll-region" class="mx-auto max-w-6xl px-4 py-6" <%= "data-poll-region" if poll_region? %>>
     <%= yield %>
   </main>

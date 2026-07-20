@@ -1,7 +1,7 @@
 module SagaForge
   module Dashboard
     # Instances (across every saga class) with at least one event parked in
-    # :stalled — it exhausted its retry budget and is waiting to be retried.
+    # :stalled, it exhausted its retry budget and is waiting to be retried.
     class StalledController < BaseController
       # Bound the scan: at scale there can be a large backlog, so we examine
       # at most CAP (most recently updated first) rather than the whole table.
@@ -20,7 +20,7 @@ module SagaForge
           .each_with_object(Hash.new { |h, k| h[k] = [] }) { |(id, name), acc| acc[id] << name }
 
         # The list is cross-class, but bulk retry is scoped to one class (the
-        # BulkRecoveryJob derives its scope from State.for_saga(klass)) — so
+        # BulkRecoveryJob derives its scope from State.for_saga(klass)), so
         # offer one "retry all" button per distinct class present here.
         @saga_classes = @states.map(&:saga_class).uniq.sort
       end

@@ -1,7 +1,7 @@
 module SagaForge
   module Dashboard
     # Instances (across every saga class) with at least one event that ran out
-    # of retries and landed in :failed — the saga is suspended pending a
+    # of retries and landed in :failed, the saga is suspended pending a
     # resume or compensate decision.
     class SuspendedController < BaseController
       # Bound the scan: at scale there can be a large backlog, so we examine
@@ -24,7 +24,7 @@ module SagaForge
         @failed_event = failed.group_by(&:saga_forge_state_id).transform_values(&:first)
 
         # The list is cross-class, but bulk resume is scoped to one class (the
-        # BulkRecoveryJob derives its scope from State.for_saga(klass)) — so
+        # BulkRecoveryJob derives its scope from State.for_saga(klass)), so
         # offer one "resume all" button per distinct class present here.
         @saga_classes = @states.map(&:saga_class).uniq.sort
       end

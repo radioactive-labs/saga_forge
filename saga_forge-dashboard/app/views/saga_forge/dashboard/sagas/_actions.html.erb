@@ -1,7 +1,7 @@
 <%# Operator actions for one saga instance. Retry stalled / Resume only make
     sense when there's something eligible (@stalled / @suspended, set by
     SagasController#show); Compensate / Cancel are shown whenever the saga
-    isn't already terminal or mid-compensation — same "recovery blocked" line
+    isn't already terminal or mid-compensation, the same "recovery blocked" line
     the model itself uses to no-op, kept here only for button visibility
     (the model is still the enforcement point; a stale button just flashes
     "Nothing to do."). Both require confirmation since they're one-way. %>

@@ -54,7 +54,8 @@ E.create!(event_id: "demo-301-started", saga_class: "DemoSaga", correlation_id: 
 E.create!(event_id: "demo-301-done", saga_class: "DemoSaga", correlation_id: "demo-301",
   state: demo_suspended, event_name: "demo_done", status: :failed, attempts: 3,
   payload: {}, error: {"class" => "RuntimeError", "message" => "undefined method `complete!' for nil",
-    "backtrace" => "app/sagas/demo_saga.rb:4:in `block in <class:DemoSaga>'\nlib/saga_forge/execution/runner.rb:58:in `call'"},
+    "backtrace" => ["app/sagas/demo_saga.rb:4:in `block in <class:DemoSaga>'",
+      "lib/saga_forge/execution/runner.rb:58:in `call'"]},
   created_at: 2.hours.ago, updated_at: 2.hours.ago)
 
 # Completed.
@@ -141,7 +142,8 @@ E.create!(event_id: "order-3001-placed", saga_class: "OrderSaga", correlation_id
 E.create!(event_id: "order-3001-settled", saga_class: "OrderSaga", correlation_id: "order-3001",
   state: order_suspended, event_name: "payment_settled", status: :failed, attempts: 3,
   payload: {}, error: {"class" => "Gateway::TimeoutError", "message" => "settlement webhook timed out after 30s",
-    "backtrace" => "app/services/gateway.rb:61:in `confirm!'\napp/sagas/order_saga.rb:12:in `block in <class:OrderSaga>'"},
+    "backtrace" => ["app/services/gateway.rb:61:in `confirm!'",
+      "app/sagas/order_saga.rb:12:in `block in <class:OrderSaga>'"]},
   created_at: 1.hour.ago, updated_at: 1.hour.ago)
 
 # Completed: took the review_passed jump straight to :completed.

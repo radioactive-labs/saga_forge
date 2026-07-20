@@ -2,7 +2,7 @@ module SagaForge
   module Dashboard
     module DashboardHelper
       # Rails mixes these into real views automatically, so content_tag and
-      # time_ago_in_words are already available there — but the helper unit
+      # time_ago_in_words are already available there, but the helper unit
       # test includes this module directly into a plain test object, so
       # they're pulled in explicitly here to work standalone too.
       include ActionView::Helpers::TagHelper
@@ -40,7 +40,7 @@ module SagaForge
 
       # Rendered relative ("3 minutes ago") or absolute (UTC) per the viewer's
       # sf_time_format cookie preference, with the other form available on
-      # hover. This is decided server-side at render time — there's no
+      # hover. This is decided server-side at render time; there's no
       # client-side relative-time JS; the toggle button (dashboard.js) just
       # writes the cookie and does a Turbo reload, which re-renders every
       # time_tag on the page with the new preference.

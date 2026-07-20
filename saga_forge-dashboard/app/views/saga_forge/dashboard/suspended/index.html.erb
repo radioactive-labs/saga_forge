@@ -1,7 +1,7 @@
 <h1 class="mb-1 text-lg font-semibold tracking-tight">Suspended sagas</h1>
 <p class="mb-3 text-sm text-[var(--sf-soft)]">
   Instances (across every saga class) with at least one event that ran out of retries and landed in
-  <span class="font-mono">failed</span> — suspended pending a resume or compensate decision.
+  <span class="font-mono">failed</span>: suspended pending a resume or compensate decision.
 </p>
 
 <%# Bulk resume is scoped to one saga class, so offer a button per class
@@ -9,7 +9,7 @@
 <% if @saga_classes.any? %>
   <div class="mb-5 flex flex-wrap items-center gap-2">
     <% @saga_classes.each do |klass| %>
-      <%= button_to "Resume all — #{klass}", bulk_action_path(saga_class: klass, mode: "resume"), method: :post,
+      <%= button_to "Resume all (#{klass})", bulk_action_path(saga_class: klass, mode: "resume"), method: :post,
             form: {data: {confirm: "Resume every failed event for #{klass}? This acts on ALL suspended instances of #{klass}, not just the #{SagaForge::Dashboard::SuspendedController::CAP} shown on this page, and re-fires each after assuming the underlying issue is fixed."}},
             title: "Acts on every suspended instance of #{klass}, not only the rows shown on this page.", class: "sf-btn sf-btn-primary" %>
     <% end %>
@@ -38,7 +38,7 @@
             <td class="px-4 py-2.5 font-mono text-xs text-[var(--sf-badge-red-fg)]">
               <% if ev %>
                 <span class="text-[var(--sf-fg)]"><%= ev.event_name %></span>
-                — <%= ev.error["class"] %>: <%= ev.error["message"] %>
+                (<%= ev.error["class"] %>: <%= ev.error["message"] %>)
               <% end %>
             </td>
             <td class="px-4 py-2.5 text-right text-xs text-[var(--sf-soft)]"><%= time_tag(state.updated_at) %></td>
@@ -48,7 +48,7 @@
     </table>
   </div>
   <% if @states.none? %>
-    <p class="px-4 py-12 text-center text-sm text-[var(--sf-soft)]">No suspended sagas — nothing has run out of retries.</p>
+    <p class="px-4 py-12 text-center text-sm text-[var(--sf-soft)]">No suspended sagas. Nothing has run out of retries.</p>
   <% end %>
 </div>
 

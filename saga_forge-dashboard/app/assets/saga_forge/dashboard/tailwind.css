@@ -19,7 +19,7 @@
  * Theme variables. Light values live on :root; a `prefers-color-scheme: dark`
  * media query supplies the system-dark defaults, and the explicit
  * `[data-theme]` attribute selectors let a future manual toggle override
- * either direction — mirrors the marketing site's index.html so the same
+ * either direction, mirroring the marketing site's index.html so the same
  * indigo accent (#4650c8 light / #97a0f5 dark) reads consistently everywhere.
  */
 :root {
@@ -188,7 +188,7 @@
 
   /* Proportional meters (analytics bars, duration bars, etc). Widths are
      pre-generated 1%-step classes so no inline style is ever needed (keeps a
-     strict style-src CSP intact) — see .sf-bar-{0..100} below. */
+     strict style-src CSP intact); see .sf-bar-{0..100} below. */
   .sf-bar { @apply h-full block; }
 }
 

@@ -1,7 +1,7 @@
 // Renders a saga's state-machine graph (Definition#to_graph: start/state/
 // terminal nodes, chain/jump/stay edges) with Cytoscape + dagre, optionally
 // overlaid with one saga instance's status. Reads the graph as JSON from
-// #sf-graph[data-graph] (structured elements — no text grammar) and paints
+// #sf-graph[data-graph] (structured elements, no text grammar) and paints
 // kind (node shape) + overlay status (fill/border) + edge kind (chain solid /
 // jump dashed / stay self-loop). Interactive: pan/zoom, and tapping a
 // node/edge shows its details and highlights its neighborhood.
@@ -17,7 +17,7 @@
 
   // Escape before writing into innerHTML: node labels are state names and
   // edge labels are event names (Ruby symbols/strings from the saga's
-  // declared DSL) — harmless in practice, but tap details render them as
+  // declared DSL), harmless in practice, but tap details render them as
   // HTML, so escape defensively regardless.
   var ESC = {"&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"};
   function esc(s) { return String(s == null ? "" : s).replace(/[&<>"']/g, function (c) { return ESC[c]; }); }
@@ -89,7 +89,7 @@
       "background-color": COLOR[s][0], "border-color": COLOR[s][1], "color": COLOR[s][2]
     }});
   });
-  // start is the machine's single entry point — visually distinct, like an
+  // start is the machine's single entry point, visually distinct, like an
   // endpoint marker rather than a state.
   style.push({selector: "node.kind-start", style: {
     "background-color": "#18181b", "border-color": "#18181b", "color": "#fff",

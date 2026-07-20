@@ -6,7 +6,7 @@
 <%# Cards are cheap independent COUNTs; the "Stalled"/"Suspended" cards link
     straight to their dedicated triage pages. "Compensating" has no dedicated
     fleet-wide page (sagas#index is scoped to one class), so it links into the
-    default class's list pre-filtered — a modest fallback until/unless a
+    default class's list pre-filtered, a modest fallback until/unless a
     fleet-wide compensating triage page exists. %>
 <div class="mb-5 grid grid-cols-2 gap-3 sm:grid-cols-4">
   <%= render "stat_card", label: "All", count: @totals[:all], href: sagas_path,

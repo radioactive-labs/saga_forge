@@ -4,7 +4,7 @@ module SagaForge
       Node = Struct.new(:key, :type, :bytes, :preview)
 
       # Above this many elements, a Hash/Array value isn't fully serialized
-      # just to build a 200-char preview — only its size is reported. Guards
+      # just to build a 200-char preview; only its size is reported. Guards
       # against a single giant context value (e.g. a batch job's collected
       # results) doing an unbounded JSON serialization on every page load.
       LARGE_COLLECTION_THRESHOLD = 50
@@ -24,7 +24,7 @@ module SagaForge
       def node(key, value)
         type = ruby_type(value)
         if large_collection?(value)
-          Node.new(key: key, type: type, bytes: nil, preview: "(#{type} — #{value.size} entries, too large to preview)")
+          Node.new(key: key, type: type, bytes: nil, preview: "(#{type}, #{value.size} entries, too large to preview)")
         else
           json = value.to_json
           Node.new(key: key, type: type, bytes: json.bytesize, preview: json.truncate(200))

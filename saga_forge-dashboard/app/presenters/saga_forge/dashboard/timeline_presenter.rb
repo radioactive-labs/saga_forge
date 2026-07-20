@@ -5,7 +5,7 @@ module SagaForge
     # The engine does not pre-merge these, so the dashboard owns it.
     class TimelinePresenter
       # index: this entry's position in its own source array (the event ledger,
-      # or the compensated/comp_error list) — a tertiary sort key so #sorted is
+      # or the compensated/comp_error list), a tertiary sort key so #sorted is
       # deterministic. Array#sort_by is not guaranteed stable, and every
       # compensation entry shares the same synthetic `at` (see below), so
       # without this tiebreak a multi-step compensation can render out of its

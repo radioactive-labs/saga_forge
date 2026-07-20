@@ -25,17 +25,17 @@
     <div class="mt-4 flex flex-col gap-2 border-t border-[var(--sf-border)] pt-4">
       <% if @stalled %>
         <div class="rounded-md border border-[var(--sf-badge-amber-border)] bg-[var(--sf-badge-amber-bg)] px-3 py-2 text-sm text-[var(--sf-badge-amber-fg)]">
-          One or more events are <strong>stalled</strong> — they've exhausted their retry budget and are waiting to be retried.
+          One or more events are <strong>stalled</strong>: they've exhausted their retry budget and are waiting to be retried.
         </div>
       <% end %>
       <% if @suspended %>
         <div class="rounded-md border border-[var(--sf-badge-red-border)] bg-[var(--sf-badge-red-bg)] px-3 py-2 text-sm text-[var(--sf-badge-red-fg)]">
-          One or more events have <strong>failed</strong> — the saga is suspended pending a resume or compensate decision.
+          One or more events have <strong>failed</strong>: the saga is suspended pending a resume or compensate decision.
         </div>
       <% end %>
       <% if @comp_error.present? %>
         <div class="rounded-md border border-[var(--sf-badge-red-border)] bg-[var(--sf-badge-red-bg)] px-3 py-2 text-sm text-[var(--sf-badge-red-fg)]">
-          Compensation is <strong>stuck</strong> on <code class="font-mono"><%= @comp_error["name"] %></code> — <%= @comp_error["class"] %>: <%= @comp_error["message"] %>
+          Compensation is <strong>stuck</strong> on <code class="font-mono"><%= @comp_error["name"] %></code> (<%= @comp_error["class"] %>: <%= @comp_error["message"] %>)
         </div>
       <% end %>
     </div>

@@ -14,7 +14,7 @@
           <span class="font-mono font-medium"><%= entry.label %></span>
           <%= status_badge(entry.status) %>
           <% if entry.kind == :compensation %>
-            <span class="ml-auto text-xs text-[var(--sf-soft)]" title="approximate — pinned to the saga's last update, not a per-step time"><%= time_tag(entry.at) %></span>
+            <span class="ml-auto text-xs text-[var(--sf-soft)]" title="approximate: pinned to the saga's last update, not a per-step time"><%= time_tag(entry.at) %></span>
           <% else %>
             <span class="ml-auto text-xs text-[var(--sf-soft)]"><%= time_tag(entry.at) %></span>
           <% end %>

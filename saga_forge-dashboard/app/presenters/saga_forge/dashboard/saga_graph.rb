@@ -18,13 +18,13 @@ module SagaForge
 
       private
 
-      # Each event is attributed to a node via Definition#state_for_event —
+      # Each event is attributed to a node via Definition#state_for_event,
       # the EXACT handler table, not a scan of edge labels (which are only
       # best-effort for jump/stay and would misattribute events on states
       # reached solely by a computed transition). A state colors to the worst
       # of its events' statuses (failed > stalled > processed; pending events
       # don't color anything). The current state always wins as :active,
-      # regardless of what its own events say — it's "in progress", not
+      # regardless of what its own events say: it's "in progress", not
       # judged by history.
       def status_map
         return {} unless @state

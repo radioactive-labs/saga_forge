@@ -10,7 +10,7 @@ module SagaForge
       def cancel = run { @state.cancel!(reason: params[:reason].presence || "operator") }
 
       # Fans the retry/resume out to a background job scoped to one saga
-      # class — the stalled/suspended lists are cross-class, so the class is
+      # class. The stalled/suspended lists are cross-class, so the class is
       # named explicitly rather than inferred from a single instance.
       def bulk
         klass = SagaForge::Router.saga_classes.find { |k| k.name == params[:saga_class] }
@@ -23,7 +23,7 @@ module SagaForge
       private
 
       # Shared per-instance action shape: find the state, run the operator
-      # method, and flash based on its boolean return — the operator methods
+      # method, and flash based on its boolean return. The operator methods
       # are status-scoped no-ops (rather than raising) when there's nothing
       # eligible, so "false" means "nothing to do", not a failure.
       def run

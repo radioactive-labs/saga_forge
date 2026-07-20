@@ -1,6 +1,6 @@
 <div class="mb-5 flex items-center justify-between">
   <h1 class="text-lg font-semibold tracking-tight">Sagas</h1>
-  <%# Plain GET select — no JS dependency for the core navigation path. %>
+  <%# Plain GET select, no JS dependency for the core navigation path. %>
   <%= form_with url: sagas_path, method: :get, class: "flex items-center gap-2" do |f| %>
     <select name="class" data-autosubmit class="rounded-md border border-[var(--sf-border)] bg-[var(--sf-surface)] px-2 py-1.5 text-sm">
       <% @saga_classes.each do |k| %>
