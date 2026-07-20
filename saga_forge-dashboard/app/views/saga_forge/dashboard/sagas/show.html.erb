@@ -1,0 +1,16 @@
+<div class="mb-5 flex items-center justify-between">
+  <div>
+    <%= link_to "‹ #{@state.saga_class}", sagas_path(class: @state.saga_class), class: "text-sm text-[var(--sf-soft)] hover:text-[var(--sf-fg)]" %>
+    <h1 class="mt-1 font-mono text-lg font-semibold tracking-tight"><%= @state.correlation_id %></h1>
+  </div>
+  <%= state_badge(@state.current_state) %>
+</div>
+
+<div class="flex flex-col gap-5">
+  <%= render "summary" %>
+  <%= render "timeline" %>
+  <% if @context.saga_meta.present? %>
+    <%= render "compensation" %>
+  <% end %>
+  <%= render "context_tree" %>
+</div>

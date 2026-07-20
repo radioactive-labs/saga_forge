@@ -1,0 +1,41 @@
+<% meta = @context.saga_meta %>
+<div class="sf-card p-4">
+  <h2 class="mb-3 text-sm font-semibold">Compensation</h2>
+  <dl class="mb-3 flex flex-wrap gap-x-6 gap-y-1.5 text-sm">
+    <% if meta["target"].present? %>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-[var(--sf-soft)]">Target</dt>
+        <dd class="font-mono"><%= meta["target"] %></dd>
+      </div>
+    <% end %>
+    <% if meta["failure_reason"].present? %>
+      <div>
+        <dt class="text-xs uppercase tracking-wide text-[var(--sf-soft)]">Failure reason</dt>
+        <dd><%= meta["failure_reason"] %></dd>
+      </div>
+    <% end %>
+  </dl>
+
+  <% compensated = meta["compensated"] || [] %>
+  <% if compensated.any? %>
+    <p class="mb-1 text-xs uppercase tracking-wide text-[var(--sf-soft)]">Compensated steps (most recent first)</p>
+    <ol class="mb-3 flex flex-col gap-1 text-sm">
+      <% compensated.reverse.each do |name| %>
+        <li class="flex items-center gap-2 font-mono">
+          <%= status_badge("processed") %>
+          <span><%= name %></span>
+          <% attempts = meta.dig("comp_attempts", name) %>
+          <% if attempts.present? %><span class="text-xs text-[var(--sf-soft)]">(attempts: <%= attempts %>)</span><% end %>
+        </li>
+      <% end %>
+    </ol>
+  <% else %>
+    <p class="mb-3 text-sm text-[var(--sf-soft)]">No steps compensated yet.</p>
+  <% end %>
+
+  <% if (err = meta["comp_error"]) %>
+    <div class="rounded-md border border-[var(--sf-badge-red-border)] bg-[var(--sf-badge-red-bg)] px-3 py-2 text-sm text-[var(--sf-badge-red-fg)]">
+      <span class="font-mono"><%= err["name"] %></span> failed to compensate: <strong><%= err["class"] %></strong><%= ": #{err["message"]}" if err["message"].present? %>
+    </div>
+  <% end %>
+</div>

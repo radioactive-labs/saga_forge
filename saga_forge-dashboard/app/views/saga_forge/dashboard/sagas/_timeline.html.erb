@@ -1,0 +1,38 @@
+<div class="sf-card overflow-hidden">
+  <h2 class="border-b border-[var(--sf-border)] px-4 py-2.5 text-sm font-semibold">Timeline</h2>
+  <ul class="divide-y divide-[var(--sf-border)]">
+    <% @timeline.sorted.each do |entry| %>
+      <li class="px-4 py-3">
+        <div class="flex flex-wrap items-center gap-2 text-sm">
+          <span class="sf-badge sf-badge-slate"><%= entry.kind %></span>
+          <span class="font-mono font-medium"><%= entry.label %></span>
+          <%= status_badge(entry.status) %>
+          <span class="ml-auto text-xs text-[var(--sf-soft)]"><%= time_tag(entry.at) %></span>
+        </div>
+
+        <% error = entry.detail[:error] %>
+        <% if entry.status.to_s == "failed" && error.present? %>
+          <div class="mt-2 rounded-md border border-[var(--sf-badge-red-border)] bg-[var(--sf-badge-red-bg)] px-3 py-2 text-xs text-[var(--sf-badge-red-fg)]">
+            <div><strong><%= error["class"] %></strong>: <%= error["message"] %></div>
+            <% if error["backtrace"].present? %>
+              <details class="mt-1">
+                <summary class="cursor-pointer select-none">Backtrace</summary>
+                <pre class="mt-1 overflow-x-auto whitespace-pre-wrap font-mono text-[11px]"><%= Array(error["backtrace"]).join("\n") %></pre>
+              </details>
+            <% end %>
+          </div>
+        <% elsif entry.kind == :event %>
+          <div class="mt-1 text-xs text-[var(--sf-soft)]">
+            attempts: <%= entry.detail[:attempts] %>
+            <% if entry.detail[:stall_count].to_i > 0 %> · stalls: <%= entry.detail[:stall_count] %><% end %>
+          </div>
+        <% elsif entry.kind == :compensation && entry.detail[:attempts].present? %>
+          <div class="mt-1 text-xs text-[var(--sf-soft)]">attempts: <%= entry.detail[:attempts] %></div>
+        <% end %>
+      </li>
+    <% end %>
+    <% if @timeline.sorted.empty? %>
+      <li class="px-4 py-8 text-center text-sm text-[var(--sf-soft)]">No events yet.</li>
+    <% end %>
+  </ul>
+</div>

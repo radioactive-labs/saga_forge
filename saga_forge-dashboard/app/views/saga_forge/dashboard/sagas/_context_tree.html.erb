@@ -1,0 +1,36 @@
+<div class="sf-card overflow-hidden">
+  <h2 class="border-b border-[var(--sf-border)] px-4 py-2.5 text-sm font-semibold">Context</h2>
+
+  <div class="overflow-x-auto">
+    <table class="w-full text-sm">
+      <thead>
+        <tr class="border-b border-[var(--sf-border)] bg-[var(--sf-bg)] text-left text-xs uppercase tracking-wide text-[var(--sf-soft)]">
+          <th class="px-4 py-2 font-medium">Key</th>
+          <th class="px-4 py-2 font-medium">Type</th>
+          <th class="px-4 py-2 font-medium">Size</th>
+          <th class="px-4 py-2 font-medium">Preview</th>
+        </tr>
+      </thead>
+      <tbody class="divide-y divide-[var(--sf-border)]">
+        <% @context.user_nodes.each do |node| %>
+          <tr>
+            <td class="px-4 py-2 font-mono"><%= node.key %></td>
+            <td class="px-4 py-2"><span class="sf-badge sf-badge-slate"><%= node.type %></span></td>
+            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= format_bytes(node.bytes) %></td>
+            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.preview %></td>
+          </tr>
+        <% end %>
+      </tbody>
+    </table>
+    <% if @context.user_nodes.empty? %>
+      <p class="px-4 py-8 text-center text-sm text-[var(--sf-soft)]">No user context keys.</p>
+    <% end %>
+  </div>
+
+  <% if @context.saga_meta.present? %>
+    <details class="border-t border-[var(--sf-border)] px-4 py-2.5 text-sm">
+      <summary class="cursor-pointer select-none text-xs uppercase tracking-wide text-[var(--sf-soft)]">Engine metadata (__saga_forge)</summary>
+      <pre class="mt-2 overflow-x-auto whitespace-pre-wrap font-mono text-xs"><%= JSON.pretty_generate(@context.saga_meta) %></pre>
+    </details>
+  <% end %>
+</div>

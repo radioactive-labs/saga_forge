@@ -14,7 +14,11 @@ module SagaForge
 
       def show
         @state = SagaForge::State.find(params[:id])
-        # fleshed out in Task 6
+        @timeline = TimelinePresenter.new(@state)
+        @context = ContextPresenter.new(@state)
+        @stalled = @state.events.stalled.exists?
+        @suspended = @state.events.failed.exists?
+        @comp_error = @state.context.dig("__saga_forge", "comp_error")
       end
     end
   end
