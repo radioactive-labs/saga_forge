@@ -1,13 +1,23 @@
+<% sorted = @timeline.sorted %>
 <div class="sf-card overflow-hidden">
   <h2 class="border-b border-[var(--sf-border)] px-4 py-2.5 text-sm font-semibold">Timeline</h2>
+  <% if @timeline.truncated? %>
+    <p class="border-b border-[var(--sf-border)] bg-[var(--sf-bg)] px-4 py-2 text-xs text-[var(--sf-soft)]">
+      Showing the latest <%= SagaForge::Dashboard::TimelinePresenter::MAX_ENTRIES %> of <%= @timeline.total_event_count %> events.
+    </p>
+  <% end %>
   <ul class="divide-y divide-[var(--sf-border)]">
-    <% @timeline.sorted.each do |entry| %>
+    <% sorted.each do |entry| %>
       <li class="px-4 py-3">
         <div class="flex flex-wrap items-center gap-2 text-sm">
           <span class="sf-badge sf-badge-slate"><%= entry.kind %></span>
           <span class="font-mono font-medium"><%= entry.label %></span>
           <%= status_badge(entry.status) %>
-          <span class="ml-auto text-xs text-[var(--sf-soft)]"><%= time_tag(entry.at) %></span>
+          <% if entry.kind == :compensation %>
+            <span class="ml-auto text-xs text-[var(--sf-soft)]" title="approximate — pinned to the saga's last update, not a per-step time"><%= time_tag(entry.at) %></span>
+          <% else %>
+            <span class="ml-auto text-xs text-[var(--sf-soft)]"><%= time_tag(entry.at) %></span>
+          <% end %>
         </div>
 
         <% error = entry.detail[:error] %>
@@ -31,7 +41,7 @@
         <% end %>
       </li>
     <% end %>
-    <% if @timeline.sorted.empty? %>
+    <% if sorted.empty? %>
       <li class="px-4 py-8 text-center text-sm text-[var(--sf-soft)]">No events yet.</li>
     <% end %>
   </ul>

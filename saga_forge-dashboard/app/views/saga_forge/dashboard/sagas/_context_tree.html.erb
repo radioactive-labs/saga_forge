@@ -12,17 +12,18 @@
         </tr>
       </thead>
       <tbody class="divide-y divide-[var(--sf-border)]">
-        <% @context.user_nodes.each do |node| %>
+        <% user_nodes = @context.user_nodes %>
+        <% user_nodes.each do |node| %>
           <tr>
             <td class="px-4 py-2 font-mono"><%= node.key %></td>
             <td class="px-4 py-2"><span class="sf-badge sf-badge-slate"><%= node.type %></span></td>
-            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= format_bytes(node.bytes) %></td>
+            <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.bytes ? format_bytes(node.bytes) : "—" %></td>
             <td class="px-4 py-2 font-mono text-xs text-[var(--sf-soft)]"><%= node.preview %></td>
           </tr>
         <% end %>
       </tbody>
     </table>
-    <% if @context.user_nodes.empty? %>
+    <% if user_nodes.empty? %>
       <p class="px-4 py-8 text-center text-sm text-[var(--sf-soft)]">No user context keys.</p>
     <% end %>
   </div>
