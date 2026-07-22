@@ -173,6 +173,28 @@ class CompensationTest < SagaForge::TestCase
     assert_equal ["ch_52"], s.context["refunded"]
   end
 
+  test "a compensation-step commit stamps last_active_at; finalize! stamps finalized_at" do
+    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
+      SagaForge.publish(:lifo_order_placed, order_id: 105, total: 3)
+      SagaForge.publish(:lifo_payment_settled, order_id: 105)
+      SagaForge.publish(:lifo_payment_failed, order_id: 105, code: "x")
+    end
+    s = LifoOrderSaga.find_by_correlation(105)
+    assert_equal "compensating", s.current_state
+    assert_nil s.finalized_at
+
+    definition = s.saga_definition
+    SagaForge::CompensationRunner.new(s).send(:run_one, definition, :release_stock, s.version)
+    s.reload
+    assert_not_nil s.last_active_at
+    assert_nil s.finalized_at
+
+    SagaForge::CompensationRunner.new(s).call
+    s.reload
+    assert_equal "compensated", s.current_state
+    assert_not_nil s.finalized_at
+  end
+
   test "the execution guard covers compensation blocks too — SagaForge.publish still raises" do
     assert_raises(SagaForge::UnstagedPublishError) do
       SagaForge.guarding_execution { SagaForge.publish(:lifo_order_placed, order_id: 999) }

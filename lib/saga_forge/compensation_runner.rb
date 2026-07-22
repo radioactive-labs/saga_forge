@@ -82,7 +82,7 @@ module SagaForge
         meta = (committed["__saga_forge"] || {}).dup
         meta["compensated"] = (meta["compensated"] || []) + [name.to_s]
         committed["__saga_forge"] = meta
-        state.update!(context: committed, version: state.version + 1)
+        state.update!(context: committed, version: state.version + 1, last_active_at: Time.current)
         # Same savepoint-per-row tolerance as Runner#commit!: a compensation
         # publishing to a recipient that already has that event no-ops at the
         # structural unique index instead of aborting this commit.
@@ -133,7 +133,8 @@ module SagaForge
     def finalize!
       state.with_lock do
         target = state.context.dig("__saga_forge", "target") || "compensated"
-        state.update!(current_state: target, version: state.version + 1)
+        now = Time.current
+        state.update!(current_state: target, version: state.version + 1, finalized_at: now, last_active_at: now)
       end
       [:done]
     end

@@ -137,6 +137,25 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_enqueued_with(job: SagaForge::CompensationJob, args: [s.id])
   end
 
+  test "commit stamps state last_active_at and event last_processed_at, leaves finalized_at nil for a non-terminal advance" do
+    rows = publish_rows(:order_placed, order_id: 20, shipment_ref: "S1", total: 10)
+    row = rows.find { |r| r.saga_class == "OrderSaga" }
+    assert_equal [:done], SagaForge::Execution::Runner.new(row).call
+    state = OrderSaga.find_by_correlation(20)
+    assert_not_nil state.last_active_at
+    assert_nil state.finalized_at
+    assert_not_nil row.reload.last_processed_at
+  end
+
+  test "reaching a terminal state via commit stamps finalized_at" do
+    run_all(publish_rows(:order_placed, order_id: 21, shipment_ref: "S1", total: 10))
+    run_all(publish_rows(:payment_settled, order_id: 21))
+    run_all(publish_rows(:review_passed, order_id: 21))
+    state = OrderSaga.find_by_correlation(21)
+    assert_equal "completed", state.current_state
+    assert_not_nil state.finalized_at
+  end
+
   test "staged insert colliding with an existing recipient row is benign; commit still succeeds, exactly one row survives" do
     # Pre-create the exact (saga_class, correlation_id, event_name) row that
     # OrderSaga's payment_settled handler is about to stage — as if it had

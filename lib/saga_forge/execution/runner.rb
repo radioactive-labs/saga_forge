@@ -53,7 +53,7 @@ module SagaForge
       end
 
       def discard_terminal!(current)
-        event.update!(status: :processed, error: {"discarded" => "terminal state #{current}"})
+        event.update!(status: :processed, last_processed_at: Time.current, error: {"discarded" => "terminal state #{current}"})
         Rails.logger.info { "[saga_forge] discarded #{event.event_name} for terminal #{event.saga_class}##{event.correlation_id}" }
         [:done]
       end
@@ -181,8 +181,13 @@ module SagaForge
             context["__saga_forge"] = meta
           end
 
-          state_row.update!(current_state: next_state, version: entry_version + 1, context: context)
-          event.update!(status: :processed, saga_forge_state_id: state_row.id, error: nil)
+          now = Time.current
+          finalized = definition.terminal?(next_state.to_sym) ? now : nil
+          state_row.update!(
+            current_state: next_state, version: entry_version + 1, context: context,
+            last_active_at: now, finalized_at: finalized
+          )
+          event.update!(status: :processed, saga_forge_state_id: state_row.id, error: nil, last_processed_at: now)
 
           unless failing # fail! discards staged publishes (§A.1)
             # Staged rows can collide benignly now that dedup is structural:
