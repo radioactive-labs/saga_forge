@@ -28,12 +28,14 @@ atomicity, event-level stalling with parking, LIFO compensation.
 
 Monorepo at `plutonium/saga_forge`, mirroring chrono_forge's two-gem layout:
 
-- **Core gem** at the repo root: plain gem (no Rails engine, no railtie).
+- **Core gem** at the repo root: not a `Rails::Engine`, but Rails is
+  required — it ships a `Rails::Railtie` (eager-loads `app/sagas` every boot
+  and reload) that loads unconditionally, no standalone-without-Rails mode.
   Zeitwerk via `Zeitwerk::Loader.for_gem` with `loader.ignore` on
   `lib/generators` (Rails' generator machinery loads those). Runtime deps:
-  `activerecord (>= 7.1)`, `activejob (>= 7.1)`, `zeitwerk`. Ruby >= 3.2.
-  Gemspec manifest via `git ls-files`, explicitly rejecting
-  `saga_forge-dashboard/`, `bin/`, `test/`, `docs/`, `site/`.
+  `activerecord (>= 7.1)`, `activejob (>= 7.1)`, `railties (>= 7.1)`,
+  `zeitwerk`. Ruby >= 3.2. Gemspec manifest via `git ls-files`, explicitly
+  rejecting `saga_forge-dashboard/`, `bin/`, `test/`, `docs/`, `site/`.
 - **`saga_forge-dashboard/`** sub-gem (phase 2): a `Rails::Engine`
   (`isolate_namespace SagaForge::Dashboard`), own gemspec/version/CHANGELOG/
   Gemfile (path-dep on the core in dev, released-gem dep in the gemspec),
@@ -60,12 +62,15 @@ Monorepo at `plutonium/saga_forge`, mirroring chrono_forge's two-gem layout:
   - `SagaForge::State` → `saga_forge_states`: UUID/bigint PK (via
     `SagaForge.primary_key_type` cascade), `saga_class` + `correlation_id`
     (unique compound index), `current_state`, `version` (optimistic
-    concurrency counter), JSONB `context`, index `[saga_class, current_state]`.
-  - `SagaForge::Event` → `saga_forge_events`: `event_id` (producer
-    idempotency key, unique index; payload-digest fallback), `saga_class`,
-    `correlation_id`, nullable backfilled FK to the state row, `event_name`,
-    JSONB `payload`, `status` (pending/processed/stalled/failed),
-    `stall_count`, `attempts`, JSONB `retry_budgets`, JSONB `error`.
+    concurrency counter), JSONB `context`, `finalized_at` (set once, on
+    reaching a terminal state), `last_active_at` (touched on every advancing
+    or compensation commit), index `[saga_class, current_state]`.
+  - `SagaForge::Event` → `saga_forge_events`: `saga_class`, `correlation_id`,
+    nullable backfilled FK to the state row, `event_name`, JSONB `payload`,
+    `status` (pending/processed/stalled/failed), `stall_count`, `attempts`,
+    JSONB `retry_budgets`, JSONB `error`, `last_processed_at` (set when the
+    row becomes `processed`). No `event_id` column: idempotency is the
+    unique index `[saga_class, correlation_id, event_name]` (§A.2).
     Indexes: `[saga_class, correlation_id, status]`, `[status, created_at]`,
     `[saga_forge_state_id, created_at]`.
   - JSONB on PG, JSON elsewhere (`t.respond_to?(:jsonb)` guard).
@@ -117,8 +122,9 @@ Monorepo at `plutonium/saga_forge`, mirroring chrono_forge's two-gem layout:
   publish paths.
 - **`publisher.rb`** — external `SagaForge.publish`: resolve → INSERT rows
   joining any open transaction (never `requires_new`) → enqueue one
-  `ExecutionJob` per row after it. `event_id:` dedup via unique index;
-  payload-digest fallback. Raises `UnstagedPublishError` when called inside
+  `ExecutionJob` per row after it. Dedup is structural via the
+  `[saga_class, correlation_id, event_name]` unique index — no caller-supplied
+  key. Raises `UnstagedPublishError` when called inside
   saga execution — a per-execution flag in
   `ActiveSupport::IsolatedExecutionState` wrapped around user block
   invocation only (forward, compensation, and timeout blocks). The engine
@@ -139,8 +145,10 @@ Monorepo at `plutonium/saga_forge`, mirroring chrono_forge's two-gem layout:
 - **`execution/` (facade + runner)** — the `saga` object yielded to blocks:
   staged `context` hash, `publish` (eager router resolution at the call
   site; staged rows held in memory), `transition_to` (validated against
-  declared states), `stay`, `fail!(reason:)`, read-only `correlation_id` /
-  `current_state`. Retry-policy application on errors (per-`during` →
+  declared states, and against the forward-only invariant — a target the saga
+  has already visited raises `ForwardOnlyError`), `fail!(reason:)`, read-only
+  `correlation_id` / `current_state`. Retry-policy application on errors
+  (per-`during` →
   class-level → site default: forward 3 attempts/cap 30s, compensation 10
   attempts/cap 600s); exhaustion or unmatched error → event row `failed`
   with traceback, nothing escapes to ActiveJob's dead-letter path.
@@ -174,6 +182,25 @@ row — `current_state` never lies. Whole-instance halt while a `failed`
 event exists. Runtime `UnknownStateError` raises inside the uncommitted
 transaction; events for terminal-state instances are marked `processed`
 with a discard note. Operator methods on `SagaForge::State`:
+
+**Persisted lifecycle timestamps, and why they don't break "derive, don't
+store."** `saga_forge_states.finalized_at`, `saga_forge_states.last_active_at`,
+and `saga_forge_events.last_processed_at` are columns, not derived at read
+time — the one deliberate exception to the "the ledger is the only source of
+truth" posture elsewhere in this design. They're consistent with it because
+each is a monotonic fact, not a status: it's written exactly once (or
+monotonically advanced) by the *same commit* that makes it true —
+`finalized_at` in the commit that lands `current_state` on a terminal state,
+`last_active_at` in every commit that advances or compensates,
+`last_processed_at` in the commit that flips an event to `processed`. Nothing
+can write one of these columns without also writing the fact it describes, so
+there is no path for them to drift out of sync with `current_state` /
+`status` the way a hand-maintained cache could. What they buy: the sweeper's
+compensating-stranded scan and `RetentionJob` can filter/order in SQL
+(`WHERE finalized_at IS NULL`, `ORDER BY last_active_at`) instead of falling
+back to `updated_at`/`created_at` (which drift for unrelated reasons, e.g. a
+`touch`) and constantizing every saga class to ask `definition.terminal?`.
+`State.finalized` / `State.active` are scopes over `finalized_at`.
 `retry_stalled!`, `resume!`, `compensate!`, `cancel!(reason:)`, plus
 `history` and `events.stalled` / `events.failed`. `stalled` / `suspended`
 are derived scopes (EXISTS subqueries on the ledger), not stored status.
@@ -187,7 +214,8 @@ are derived scopes (EXISTS subqueries on the ledger), not stored status.
   torture targets: no ghost cascades from failed blocks (staged publishes
   never surface), exactly-once staged-row insertion across re-runs,
   parking + in-order re-delivery, halt discipline, version-race retries,
-  LIFO compensation derivation with `stay` loops.
+  LIFO compensation derivation with distinct events sharing one
+  `compensate:` handler.
 - Generator tests copying angarium's matrix: default → `db/migrate`,
   `--database=NAME` → `db/NAME_migrate`, `--database=primary` →
   `db/migrate`, no-flag + configured database → configured path;
@@ -260,7 +288,7 @@ class OrderFulfillmentSaga < SagaForge::Base
   end                                             # ⇒ falls through to :awaiting_settlement
 
   # The webhook controller announces the outcome:
-  #   SagaForge.publish :payment_settled, event_id: webhook.id, order_id: order.id
+  #   SagaForge.publish :payment_settled, order_id: order.id
   during :awaiting_settlement, on: :payment_settled, compensate: :release_inventory do |saga, _payload|
     Warehouse.reserve(saga.context[:items], key: saga.correlation_id)
     Shipping.dispatch(saga.correlation_id)
@@ -319,11 +347,17 @@ intentional (inserting a state splices it in), but block order is semantic.
 |---|---|
 | *(fall through)* | Advance to the successor. The 90% case. |
 | `saga.transition_to :state` | Jump: branching, skipping, rejoining the mainline. Undeclared target ⇒ `UnknownStateError`, raised inside the uncommitted transaction. |
-| `saga.stay` | Remain in this state; handle the event again later (loops, partial progress). |
 | `saga.fail!(reason: nil)` | Halt forward flow, run the compensations of processed steps LIFO (§A.4), transition to `:compensated`. |
 | `saga.context` | JSONB-backed hash; staged in memory, persisted at commit. Also the sole input to compensations — write what rollback will need; treat compensation-read keys as append-only (arrays/maps for repeats). |
 | `saga.publish :event, **payload` | Emit a fact for other sagas — **staged, delivered only on success**. Recipients resolved eagerly at the call site; their inbound rows insert atomically with this block's commit (§A.2). Discarded by `fail!`. Usable in compensation blocks. |
 | `saga.correlation_id` / `saga.current_state` | Read-only identity and position at block entry. |
+
+**Forward-only rule.** Sagas are strictly forward-only: every processed event
+advances (fall-through), branches (`transition_to` to a state not yet
+visited), or fails — there is no verb to remain in the current state. A saga
+never re-enters a state it has already resided in; the runtime enforces this
+(`ForwardOnlyError`) and a violation marks the event `failed`, same as any
+other handler bug, for an operator to fix and `resume!`.
 
 #### Branching
 
@@ -362,8 +396,8 @@ during :awaiting_settlement, on: :payment_settled,
 `on_timeout:` takes `:fail!` or a state name (timeout-as-branch). Implemented
 as a scheduled job staged at transition time; a stale timer firing late is
 discarded by the same state check that powers stalling. **The clock resets on
-each handled event** (a `stay` loop making progress is not timing out); total
-residence in a state is a dashboard concern, not a timeout one.
+each handled event**; total residence in a state is a dashboard concern, not a
+timeout one.
 
 ### A.2 The event ledger: publish is persist-first
 
@@ -371,8 +405,7 @@ Two entry points, one rule — an event exists iff its publisher's world is real
 
 ```ruby
 # OUTSIDE saga execution — webhook controllers, jobs, models:
-SagaForge.publish :payment_settled, event_id: "settle:#{order.id}",
-                   order_id: 42, transaction_id: "tx_9"
+SagaForge.publish :payment_settled, order_id: 42, transaction_id: "tx_9"
 
 # INSIDE a saga block — staged, delivered only if this block commits:
 saga.publish :order_confirmed, total: saga.context[:total]
@@ -410,8 +443,7 @@ Publishing means:
 
    ```ruby
    # Producer publishes once, with each recipient's key present:
-   SagaForge.publish :payment_settled, event_id: "settle:#{order.id}",
-                      order_id: 42, shipment_ref: "SHP-9"
+   SagaForge.publish :payment_settled, order_id: 42, shipment_ref: "SHP-9"
 
    # OrderFulfillmentSaga:  correlate_by :order_id             → instance 42
    # ShipmentSaga:          correlate_by { |p, event|            → instance SHP-9
@@ -468,11 +500,17 @@ commit sees `processed` and skips), so staged payloads need no determinism
 discipline — timestamps are fine. What you see resolved at the call site is
 exactly what commits — there is no second resolution to agree with.
 
-**Publish idempotency (external boundary only).** For `SagaForge.publish`,
-pass `event_id:` as the idempotency key; the unique index no-ops duplicates
-(webhook redelivery). Without an explicit `event_id:`, dedup falls back to
-event name + payload digest — which requires the payload to be deterministic
-across the producer's retries.
+**Idempotency is structural, not a caller-supplied key.** There is no
+`event_id:` and no payload digest. Dedup is the unique index on
+`(saga_class, correlation_id, event_name)` — because a forward-only saga
+handles a given event name at most once per instance, that tuple *is* the
+dedup key, for both entry points: a redelivered webhook through
+`SagaForge.publish` no-ops at the index, and so does a duplicate
+saga-to-saga fan-in through `saga.publish`. This also closes a leak the old
+per-delivery `event_id:` scheme had: a delivery that stalled (parked, never
+processed) and was then redelivered under a *different* `event_id:` used to
+insert a second, orphaned `stalled` row for the same logical event; the
+structural key makes that impossible by construction.
 
 #### Inbound event lifecycle
 
@@ -566,9 +604,10 @@ that. On `fail!` (or `compensate!`), the engine:
 1. Reads this instance's `processed` inbound events, in ledger order.
 2. Maps each through the boot-time `event → compensate:` registry
    (unique — event→handler already is).
-3. Dedupes to **distinct handlers** (a `stay` loop that processed five
-   `item_packed` events owes one compensation run, not five — correct because
-   compensations read full accumulated context).
+3. Dedupes to **distinct handlers** (several distinct events — e.g.
+   `item_packed_a` and `item_packed_b` — that share one `compensate:`
+   declaration owe a single compensation run, not one per event — correct
+   because compensations read full accumulated context).
 4. Runs them **LIFO**, under the same commit-at-end, retry-per-policy contract
    as forward blocks. Completion transitions to `:compensated`.
 
@@ -632,7 +671,7 @@ row goes `failed` (§A.3); nothing escapes to ActiveJob's dead-letter queue.
 ```ruby
 SagaForge.configure do |config|
   config.stall_wait            = 3.seconds
-  config.stall_budget          = 40             # queue-spins before parking
+  config.stall_budget          = 3              # queue-spins before parking
   config.sweep_interval        = 30.seconds     # pending-row recovery
   config.retention             = 90.days        # processed events, prunable only after a saga reaches
                                                 # a terminal state (active sagas derive compensation
@@ -692,20 +731,28 @@ committed):
 - `current_state` — always the real workflow position; no status column
 - `version` — internal monotonic counter (optimistic concurrency)
 - JSONB `context` — workflow scratchpad *and* compensation snapshot
+- `finalized_at` — set once, in the same commit that lands the saga in a
+  terminal state; nil while active. Indexed, so retention/dashboards can
+  filter finalized vs. active in SQL without constantizing each saga class.
+- `last_active_at` — touched in every commit that advances or compensates
+  the saga; the sweeper's staleness/liveness signal.
 - Index `[saga_class, current_state]` for dashboards
 
 **`saga_forge_events`** — the ledger (inbound only — there are no outbound
 rows); append-only rows, mutable status:
 
 - UUID PK
-- `event_id` — producer-supplied idempotency key (unique index; payload
-  digest fallback when absent)
+- No `event_id` column. Idempotency is structural: the unique index
+  `[saga_class, correlation_id, event_name]` — see §A.2.
 - `saga_class`, `correlation_id`; nullable FK to the saga row (backfilled)
 - `event_name`, JSONB `payload`
 - `status`: pending / processed / stalled / failed; `stall_count`
 - `attempts`, JSONB `retry_budgets` (per-error composite budgets)
 - JSONB `error` (traceback for failed rows)
-- Indexes: `[saga_class, correlation_id, status]` (halt + parking),
+- `last_processed_at` — set in the same commit that flips `status` to
+  `processed`.
+- Indexes: `[saga_class, correlation_id, event_name]` (unique, dedup),
+  `[saga_class, correlation_id, status]` (halt + parking),
   `[status, created_at]` (sweeper), `[saga_forge_state_id, created_at]` (history)
 
 Two tables. That's the whole footprint.
@@ -716,8 +763,9 @@ Two tables. That's the whole footprint.
 |---|---|
 | Side effects inline; no consumer jobs, no internal command events | Commit-at-end removed the held-lock problem; whole workflow in one file |
 | States only at async boundaries | Sync work chains inline; kills state proliferation at the root |
-| Default-advance by file order; `transition_to` only for jumps; explicit `stay` | One flow mechanism; chronological reading; static chain for validation |
+| Default-advance by file order; `transition_to` only for jumps; **no `stay` — forward-only** | One flow mechanism; chronological reading; static chain for validation; a saga that can never revisit a state has a chain that's also a DAG, which is what makes `to_mermaid` and the compensation derivation sound |
 | Events persisted before jobs run; jobs carry only a row ID | At-least-once from the moment of publish; dedup by index; audit trail for free |
+| **`event_id:` removed; dedup is the structural `[saga_class, correlation_id, event_name]` unique index** | Forward-only means each event name is handled at most once per instance, so that tuple already *is* the idempotency key — no caller-supplied key, no payload-digest fallback, no determinism discipline. Also closes an orphaned-`stalled`-row leak the old per-delivery `event_id:` scheme allowed (a redelivery under a different `event_id:` used to insert a second parked row for the same logical event); the new key makes that structurally impossible |
 | **`saga.publish` staged, delivered on success — the outbox guarantee without the outbox** | Events aren't inert side effects: a ghost event from a failed block *cascades* into downstream workflows that never park on the publisher's state. Persist-first makes the fix free — staged publishes ARE the recipients' inbound rows, inserted atomically with the commit. Exactly-once insertion (no payload-determinism discipline for saga-to-saga); `SagaForge.publish` inside block execution raises |
 | **Delivery = precomputed rows inserted in the transaction, enqueues follow it in plain code; `SagaForge.publish` is external-only** | `saga.publish` resolves once at the call site and holds row attributes; the engine inserts them directly and enqueues as the next statement after its `transaction` block — no ActiveJob deferral, no adapter detection, no second resolution to keep consistent, no guard exemption to design. Rows are the obligation, enqueues are hints, the sweeper is the guarantee; the one external-caller race is absorbed by not-found → retry → discard |
 | **Events broadcast to all registered sagas; class-scoped publish dropped** | Events are facts, not addressed messages; narrowness comes from naming, not targeting |
@@ -731,10 +779,12 @@ Two tables. That's the whole footprint.
 | Event-sourcing `replay!` rejected | The saga row is correct by construction; old-events-through-current-code is unsound when file order is semantics |
 | ChronoForge retry policies wholesale | Value object + composites + per-error budgets, proven in production; tracked on the event row |
 | Stall spins never consume retry budget | Being early isn't an error |
-| Timeout clock resets per handled event | A `stay` loop making progress isn't timing out |
+| Timeout clock resets per handled event | The saga is making forward progress in the state, so the wait isn't stalled — see §A.1 |
 | Whole-instance halt on failed event; `skippable:` deferred | Safety default; add the escape hatch when usage demands it |
 | Terminal `:compensated`; `:cancelled` for operator aborts | Failure of an event ≠ fate of the saga |
 | **Compensation declared on the handler (`compensate:`); ledger derived, not stored** | "What's owed" is a pure function of which events processed — already recorded in the event ledger; `compensation_ledger` was a hand-maintained cache. A step is compensable iff it committed, by construction |
 | **Compensations take no args; context is the snapshot** | Everything rollback needs was written by the forward block and committed atomically with it; self-guarding blocks cover conditional cases. Convention: compensation-read keys are append-only |
 | Resume-then-compensate rule | A failed step implies no compensation *and* left no context — both by construction; the idempotent re-run commits the facts before rollback |
 | No condition DSL | Ruby `if` beats invented syntax |
+| **Persisted lifecycle timestamps** (`saga_forge_states.finalized_at` / `last_active_at`, `saga_forge_events.last_processed_at`), written atomically in the same commit as `current_state` / `processed` | Doesn't violate "the saga row never lies" (§A.3, §A.9): each is a monotonic fact about *when* something already-true happened, written by the same commit that makes it true — not a separate mutable status that can drift. Lets the sweeper's compensating-scan and `RetentionJob` key off columns instead of `updated_at`/`created_at` plus constantizing every saga class to ask `terminal?` |
+| **Rails required** (gemspec depends on `railties`; railtie loads unconditionally, `defined?(Rails::Railtie)` / `defined?(Rails)` guards dropped) | The guards existed for a gem-used-standalone-without-Rails configuration that added conditional branches (e.g. `Router#handler_for`'s defense-in-depth rescue, `primary_key_type`'s `Rails.application` check) without a real caller; every deployment target boots Rails, so the gem commits to it and the code gets simpler |

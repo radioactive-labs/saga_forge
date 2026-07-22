@@ -44,7 +44,7 @@ class OrderFulfillmentSaga < SagaForge::Base
   end                                             # falls through to :awaiting_settlement
 
   # The webhook controller announces the outcome:
-  #   SagaForge.publish :payment_settled, event_id: webhook.id, order_id: order.id
+  #   SagaForge.publish :payment_settled, order_id: order.id
   during :awaiting_settlement, on: :payment_settled, compensate: :release_inventory do |saga, _payload|
     Warehouse.reserve(saga.context[:items], key: saga.correlation_id)
     Shipping.dispatch(saga.correlation_id)
@@ -73,7 +73,7 @@ The rest of the world talks to it by publishing facts:
 
 ```ruby
 # From a webhook controller, a job, a model callback, anywhere outside a saga:
-SagaForge.publish :payment_settled, event_id: "settle:#{webhook.id}", order_id: 42
+SagaForge.publish :payment_settled, order_id: 42
 ```
 
 SagaForge handles the rest: persisting the event before any job touches it,
@@ -148,13 +148,19 @@ Inside a handler block, `saga` responds to:
 | --- | --- |
 | (fall through) | Advance to the state's declared successor. The common case. |
 | `saga.transition_to :state` | Jump: branch, skip, or rejoin the mainline. An undeclared target raises. |
-| `saga.stay` | Remain in this state and handle the event again later (loops, partial progress). |
 | `saga.fail!(reason: nil)` | Halt forward flow and run the compensations of every committed step, last first. |
 | `saga.context` | A JSON-backed hash, staged in memory and persisted at commit. Also the sole input to compensations: write what rollback will need. |
 | `saga.publish :event, **payload` | Emit a fact for other sagas, delivered only if this block commits. |
 | `saga.correlation_id` / `saga.current_state` | Read-only identity and position at block entry. |
 
 The last verb called wins; only `fail!` stops the block mid-flight.
+
+Sagas are strictly forward-only: every processed event advances, branches
+(`transition_to` to a state the saga hasn't visited yet), or fails — never
+loops or revisits a state. Trying to re-enter a state the saga has already
+resided in raises `SagaForge::ForwardOnlyError`; that marks the event
+`failed`, the same as any other handler bug, for an operator to fix and
+`resume!`.
 
 ### Branching
 
@@ -173,16 +179,18 @@ so arrival order is free while processing order stays deterministic.
 
 There are two ways an event reaches a saga, and they are not interchangeable.
 
-**`SagaForge.publish(event_name, event_id: nil, **payload)`** is the external
-entry point: call it from controllers, webhook handlers, jobs, anywhere
-outside saga execution. The event is persisted first (the row inserts join
-whatever transaction is open at the call site) and one `ExecutionJob` per
-recipient is enqueued right after. `event_id:` is the producer's idempotency
-key; a duplicate publish (a webhook redelivery, say) no-ops against a unique
-index. Omit it and a deterministic digest of the event name and payload is
-used instead, which is fine as long as the payload is identical across the
-producer's retries. Calling it from inside a saga block raises
-`SagaForge::UnstagedPublishError`, because that is almost always the
+**`SagaForge.publish(event_name, **payload)`** is the external entry point:
+call it from controllers, webhook handlers, jobs, anywhere outside saga
+execution. The event is persisted first (the row inserts join whatever
+transaction is open at the call site) and one `ExecutionJob` per recipient is
+enqueued right after. Idempotency is structural, not something you supply:
+because a forward-only saga handles each event name at most once, the unique
+index on `(saga_class, correlation_id, event_name)` makes a duplicate
+delivery a no-op automatically, whether the duplicate is a webhook
+redelivery or a saga-to-saga fan-in from another saga's `saga.publish`. There
+is no idempotency key to pass in and no payload-determinism discipline to
+maintain across retries. Calling `SagaForge.publish` from inside a saga block
+raises `SagaForge::UnstagedPublishError`, because that is almost always the
 ghost-event bug described next.
 
 **`saga.publish(event_name, **payload)`** is the verb inside saga blocks,
@@ -199,8 +207,7 @@ every saga class that registers the event, and each recipient extracts its own
 correlation id via its `correlate_by`:
 
 ```ruby
-SagaForge.publish :payment_settled, event_id: "settle:#{order.id}",
-                  order_id: 42, shipment_ref: "SHP-9"
+SagaForge.publish :payment_settled, order_id: 42, shipment_ref: "SHP-9"
 
 # OrderFulfillmentSaga:  correlate_by :order_id                     -> instance 42
 # ShipmentSaga:          correlate_by { |p, _| p[:shipment_ref] }   -> instance SHP-9
@@ -281,8 +288,9 @@ Each event is processed as one atomic unit:
    Side effects (API calls, mail, other services) happen here.
 2. One transaction then commits everything: the saga row is locked, its
    version is checked (a concurrent commit loses cleanly and retries), the
-   new state and context are written, the event flips to `processed`, and any
-   staged publishes insert.
+   new state and context are written (along with `last_active_at`, and
+   `finalized_at` if the new state is terminal), the event flips to
+   `processed` (with `last_processed_at`), and any staged publishes insert.
 3. After the commit: staged events enqueue their jobs, parked events for the
    new state re-deliver, and timeout timers arm.
 
@@ -340,8 +348,9 @@ ever escapes to ActiveJob's dead-letter handling.
 There is no separately maintained rollback log to drift out of sync; what is
 owed is derived from the ledger. SagaForge reads this instance's `processed`
 events in order, maps each through its handler's `compensate:` declaration,
-removes duplicates (a `stay` loop that processed five events owes one
-compensation run, not five), and runs the result last-in-first-out. Each
+removes duplicates (distinct events whose handlers share one `compensate:`
+declaration owe a single compensation run, not one per event), and runs the
+result last-in-first-out. Each
 compensation commits individually, so a crash mid-rollback resumes exactly
 where it left off. When the list drains, the saga lands in `:compensated`
 (or `:cancelled`, for an operator's `cancel!`).
@@ -375,10 +384,9 @@ end
 
 `on_timeout:` takes `:fail!` (compensate and land in `:compensated`, with
 `"timeout"` recorded as the reason) or a state name (timeout as a branch: move
-on and handle it there). The clock resets on every handled event, so a `stay`
-loop that is making progress is not timing out. Under the hood each commit
-arms a fresh timer stamped with the saga's version; a stale timer that fires
-after the saga has moved on notices the version changed and discards itself.
+on and handle it there). Under the hood each commit arms a fresh timer
+stamped with the saga's version; a stale timer that fires after the saga has
+moved on notices the version changed and discards itself.
 
 One operational consequence: expired timers showing up in your queue's
 history are expected litter, not a leak. Volume is bounded by how often the
@@ -457,16 +465,22 @@ What SagaForge actually promises, so you know what to build on:
   external calls carry idempotency keys; SagaForge's own bookkeeping needs
   nothing from you.
 - **Saga-to-saga events are exactly-once.** Staged publishes insert
-  atomically with the step's commit, under deterministic ids. A re-run
-  re-stages in memory only; a re-delivery after commit is a no-op. Failed
-  blocks leak nothing.
+  atomically with the step's commit; the `(saga_class, correlation_id,
+  event_name)` unique index makes a re-delivery after commit a no-op. A
+  re-run before commit re-stages in memory only. Failed blocks leak nothing.
 - **Processing order is deterministic per instance.** Arrival order is free;
   the state chain plus parking means handlers always run in declared order.
   Across different instances and different sagas there is no ordering.
 - **The saga row never lies.** `current_state` is always the true position.
   Stalls and failures are recorded on the event that stalled or failed, never
   by mutating the saga, so "stalled" and "suspended" are derived views, not
-  states you can get stuck in by accident.
+  states you can get stuck in by accident. Three timestamps are persisted
+  alongside these facts, written atomically in the same commit as their
+  cause, so they can't drift: `saga_forge_states.last_active_at` (updated on
+  every advancing or compensation commit), `saga_forge_states.finalized_at`
+  (set once, when the saga reaches a terminal state), and
+  `saga_forge_events.last_processed_at` (set when an event becomes
+  `processed`).
 
 ## Configuration
 
@@ -541,9 +555,10 @@ meets production traffic. Then each gap becomes a small project:
   loses; your handler finds no order and gives up, or worse, half-processes.
   SagaForge persists the event and parks it until the saga is ready.
 - **Duplicate delivery.** Webhook providers redeliver; queues are
-  at-least-once. Without an idempotency key on a durable ledger, the second
-  delivery double-ships the order. `event_id:` plus a unique index makes it a
-  no-op.
+  at-least-once. SagaForge's dedup is structural: a forward-only saga handles
+  each event name once, so the `(saga_class, correlation_id, event_name)`
+  unique index makes a redelivered webhook a no-op with no idempotency key
+  from the caller.
 - **Partial failure.** Payment failed after inventory was reserved. Which
   cleanup jobs do you enqueue, in what order, from what data? SagaForge
   derives the rollback from what actually committed and runs it in reverse,
