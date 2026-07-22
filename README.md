@@ -223,7 +223,7 @@ with the saga's current state:
    the job re-enqueues itself with a short wait (`config.stall_wait`, default
    3 seconds) and tries again. Being early is not an error; these spins never
    touch any retry budget.
-3. Still early after `config.stall_budget` spins (default 40): the event
+3. Still early after `config.stall_budget` spins (default 3): the event
    parks as `stalled` and stops consuming queue cycles. The saga itself is
    untouched.
 4. Whenever a commit advances the saga's state, parked events registered for
@@ -237,13 +237,13 @@ the network delivered them in.
 ### The stall budget
 
 The two knobs multiply into how long an early event keeps spinning before it
-parks: `stall_budget` spins of `stall_wait` each, so the default 40 by 3
-seconds is roughly two minutes of cheap queue-spinning. It is a floor, not an
+parks: `stall_budget` spins of `stall_wait` each, so the default 3 by 3
+seconds is roughly nine seconds of cheap queue-spinning. It is a floor, not an
 exact clock, since each spin is a re-enqueue and adds a little queue latency.
 Those spins cost nothing but queue cycles and never consume a retry attempt.
 
 Size the budget to how far out of order you actually expect events to arrive.
-The default absorbs a predecessor that lags by up to about two minutes, which
+The default absorbs a predecessor that lags by up to about nine seconds, which
 covers a webhook provider having a slow moment. If a predecessor event
 routinely lags further (a settlement that can take ten minutes to confirm, an
 upstream saga that runs long), raise `config.stall_budget` so the follower
@@ -476,7 +476,7 @@ What SagaForge actually promises, so you know what to build on:
 | Option | Default | What it controls |
 | --- | --- | --- |
 | `stall_wait` | `3.seconds` | How long an early event waits between queue spins. |
-| `stall_budget` | `40` | Spins before an early event parks as `stalled`. |
+| `stall_budget` | `3` | Spins before an early event parks as `stalled`. |
 | `sweep_interval` | `30.seconds` | Age at which the sweeper considers something stranded. |
 | `retention` | `90.days` | Age past which processed events of terminal sagas are pruned. |
 | `job_queue` | `:sagas` | ActiveJob queue for all SagaForge jobs. |

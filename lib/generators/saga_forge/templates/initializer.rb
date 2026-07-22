@@ -10,7 +10,7 @@ SagaForge.configure do |config|
 
   # === Engine tuning (defaults shown) ===
   # config.stall_wait     = 3.seconds   # early-event queue-spin wait
-  # config.stall_budget   = 40          # spins before an event parks as stalled
+  # config.stall_budget   = 3           # spins before an event parks as stalled
   # config.sweep_interval = 30.seconds  # SweeperJob cadence (schedule it yourself)
   # config.retention      = 90.days     # processed-event pruning window (RetentionJob)
   # config.job_queue      = :sagas

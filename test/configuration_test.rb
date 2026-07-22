@@ -4,7 +4,7 @@ class ConfigurationTest < SagaForge::TestCase
   test "defaults" do
     c = SagaForge::Configuration.new
     assert_equal 3.seconds, c.stall_wait
-    assert_equal 40, c.stall_budget
+    assert_equal 3, c.stall_budget
     assert_equal 30.seconds, c.sweep_interval
     assert_equal 90.days, c.retention
     assert_equal :sagas, c.job_queue
@@ -17,7 +17,7 @@ class ConfigurationTest < SagaForge::TestCase
     SagaForge.configure { |c| c.stall_budget = 5 }
     assert_equal 5, SagaForge.config.stall_budget
     SagaForge.reset_configuration!
-    assert_equal 40, SagaForge.config.stall_budget
+    assert_equal 3, SagaForge.config.stall_budget
   end
 
   test "migrations_database resolution order" do

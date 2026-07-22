@@ -5,7 +5,7 @@ module SagaForge
 
     def initialize
       @stall_wait = 3.seconds
-      @stall_budget = 40
+      @stall_budget = 3
       @sweep_interval = 30.seconds
       @retention = 90.days
       @job_queue = :sagas
