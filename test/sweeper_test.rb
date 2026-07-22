@@ -19,19 +19,32 @@ class SweeperTest < SagaForge::TestCase
 
   test "re-enqueues stranded compensating sagas but skips comp_error ones" do
     stranded = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "10",
-      current_state: "compensating", updated_at: 5.minutes.ago)
+      current_state: "compensating", last_active_at: 5.minutes.ago)
     SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "11",
-      current_state: "compensating", updated_at: 5.minutes.ago,
+      current_state: "compensating", last_active_at: 5.minutes.ago,
       context: {"__saga_forge" => {"comp_error" => {"name" => "x"}}}) # exhausted — skipped
     SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "12",
-      current_state: "compensating") # fresh — in-flight, not swept
+      current_state: "compensating", last_active_at: Time.current) # fresh — in-flight, not swept
     SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "13",
-      current_state: "awaiting_settlement", updated_at: 5.minutes.ago) # not compensating
+      current_state: "awaiting_settlement", last_active_at: 5.minutes.ago) # not compensating
 
     SagaForge::SweeperJob.perform_now
     comp_args = enqueued_jobs.select { |j| j["job_class"] == "SagaForge::CompensationJob" }
       .map { |j| j["arguments"] }
     assert_equal [[stranded.id]], comp_args
+  end
+
+  test "compensating sweep keys off last_active_at, not updated_at" do
+    # updated_at is aged (row touched long ago via a later no-op save) but
+    # last_active_at (the real activity stamp) is recent — must NOT sweep.
+    recent = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "14",
+      current_state: "compensating", last_active_at: Time.current)
+    recent.update_column(:updated_at, 5.minutes.ago)
+
+    SagaForge::SweeperJob.perform_now
+    comp_args = enqueued_jobs.select { |j| j["job_class"] == "SagaForge::CompensationJob" }
+      .map { |j| j["arguments"] }
+    refute_includes comp_args, [recent.id]
   end
 
   test "re-delivers stalled events whose saga now sits at their registered state" do
@@ -65,7 +78,7 @@ class SweeperTest < SagaForge::TestCase
     ctx = s.context.deep_dup
     ctx["__saga_forge"] = {"failure_reason" => "x", "target" => "compensated"}
     s.update!(current_state: "compensating", context: ctx, version: s.version + 1,
-      updated_at: 5.minutes.ago)
+      last_active_at: 5.minutes.ago)
     # BrokenCompSaga's explode compensation raises — swap in a tolerant no-op via
     # the started event having compensate: :explode... instead use LifoOrderSaga? Keep simple:
     # assert only that the sweep enqueues the CompensationJob:
@@ -73,23 +86,35 @@ class SweeperTest < SagaForge::TestCase
     assert(enqueued_jobs.any? { |j| j["job_class"] == "SagaForge::CompensationJob" && j["arguments"] == [s.id] })
   end
 
-  test "retention prunes processed events of terminal sagas only, plus aged orphans" do
-    terminal = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "30", current_state: "completed")
-    active = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "31", current_state: "awaiting_settlement")
+  test "retention prunes processed events of finalized sagas only, plus aged orphans" do
+    terminal = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "30",
+      current_state: "completed", finalized_at: 100.days.ago)
+    active = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "31",
+      current_state: "awaiting_settlement", finalized_at: nil)
     prunable = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "30",
-      event_name: "order_placed", status: :processed, state: terminal, created_at: 100.days.ago)
+      event_name: "order_placed", status: :processed, state: terminal, last_processed_at: 100.days.ago)
     kept_active = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "31",
-      event_name: "order_placed", status: :processed, state: active, created_at: 100.days.ago)
+      event_name: "order_placed", status: :processed, state: active, last_processed_at: 100.days.ago)
     kept_fresh = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "30",
-      event_name: "payment_settled", status: :processed, state: terminal)
+      event_name: "payment_settled", status: :processed, state: terminal, last_processed_at: Time.current)
     orphan = SagaForge::Event.create!(saga_class: "GoneSaga", correlation_id: "32",
-      event_name: "whatever", status: :processed, created_at: 100.days.ago)
+      event_name: "whatever", status: :processed, last_processed_at: 100.days.ago)
 
     SagaForge::RetentionJob.perform_now
     refute SagaForge::Event.exists?(prunable.id)
     assert SagaForge::Event.exists?(kept_active.id)
     assert SagaForge::Event.exists?(kept_fresh.id)
     refute SagaForge::Event.exists?(orphan.id)
+  end
+
+  test "retention prunes finalized sagas even when saga_class no longer resolves (leak fix)" do
+    vanished_finalized = SagaForge::State.create!(saga_class: "LongGoneSaga", correlation_id: "33",
+      current_state: "completed", finalized_at: 100.days.ago)
+    prunable = SagaForge::Event.create!(saga_class: "LongGoneSaga", correlation_id: "33",
+      event_name: "order_placed", status: :processed, state: vanished_finalized, last_processed_at: 100.days.ago)
+
+    SagaForge::RetentionJob.perform_now
+    refute SagaForge::Event.exists?(prunable.id)
   end
 
   test "sweeper skips vanished saga classes with a loud log" do

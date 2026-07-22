@@ -16,6 +16,8 @@ module SagaForge
     scope :stalled, -> { where(id: Event.stalled.select(:saga_forge_state_id)) }
     scope :suspended, -> { where(id: Event.failed.select(:saga_forge_state_id)) }
     scope :compensating, -> { where(current_state: COMPENSATING.to_s) }
+    scope :finalized, -> { where.not(finalized_at: nil) }
+    scope :active, -> { where(finalized_at: nil) }
 
     def history = events.ledger_order
 
@@ -78,7 +80,7 @@ module SagaForge
         meta = (context_copy["__saga_forge"] || {}).merge("target" => target.to_s)
         meta["failure_reason"] = reason if reason
         context_copy["__saga_forge"] = meta
-        update!(current_state: COMPENSATING.to_s, version: version + 1, context: context_copy)
+        update!(current_state: COMPENSATING.to_s, version: version + 1, context: context_copy, last_active_at: Time.current)
         transitioned = true
       end
       CompensationJob.perform_later(id) if transitioned

@@ -37,7 +37,7 @@ module SagaForge
     # operator-recovery-only — re-enqueueing them would re-run a broken block
     # every sweep, forever.
     def sweep_stranded_compensating
-      State.in_state(State::COMPENSATING).where(updated_at: ..cutoff).find_each do |state|
+      State.in_state(State::COMPENSATING).where(last_active_at: ..cutoff).find_each do |state|
         next if state.context.dig("__saga_forge", "comp_error").present?
         CompensationJob.perform_later(state.id)
       end

@@ -94,7 +94,7 @@ class DurabilityTest < SagaForge::TestCase
     # Simulate the lost enqueue by discarding it, then backdate past the
     # sweeper's cutoff so the stranding looks aged, not in-flight.
     clear_enqueued_jobs
-    s.update_columns(updated_at: 5.minutes.ago)
+    s.update_columns(last_active_at: 5.minutes.ago)
 
     SagaForge::SweeperJob.perform_now
     assert_enqueued_with(job: SagaForge::CompensationJob, args: [s.id])
