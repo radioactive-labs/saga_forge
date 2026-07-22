@@ -3,10 +3,10 @@ require "test_helper"
 class ActionsTest < SagaForge::Dashboard::TestCase
   test "resume flips failed event and redirects" do
     s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "c1", current_state: "demo_waiting")
-    SagaForge::Event.create!(event_id: "e", saga_class: "DemoSaga", correlation_id: "c1", event_name: "demo_done", status: :failed, state: s)
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "c1", event_name: "demo_done", status: :failed, state: s)
     post "/saga_forge/sagas/#{s.id}/resume"
     assert_equal 302, last_response.status
-    assert SagaForge::Event.where(event_id: "e").first.pending?
+    assert SagaForge::Event.where(saga_class: "DemoSaga", correlation_id: "c1", event_name: "demo_done").first.pending?
   end
 
   test "no-op flashes nothing to do" do

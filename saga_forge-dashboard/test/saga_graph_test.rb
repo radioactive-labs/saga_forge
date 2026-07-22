@@ -9,7 +9,6 @@ class SagaGraphTest < SagaForge::Dashboard::TestCase
     assert h[:nodes].all? { |n| n[:classes].include?("status-none") }
     assert h[:edges].any? { |e| e[:classes].include?("kind-chain") }
     assert h[:edges].any? { |e| e[:classes].include?("kind-jump") }
-    assert h[:edges].any? { |e| e[:classes].include?("kind-stay") }
   end
 
   test "overlay marks current state active" do
@@ -22,7 +21,7 @@ class SagaGraphTest < SagaForge::Dashboard::TestCase
 
   test "overlay resolves an event's node via state_for_event (not edge-label scanning)" do
     s = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "2", current_state: "awaiting_review")
-    SagaForge::Event.create!(event_id: "e1", saga_class: "OrderSaga", correlation_id: "2",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "2",
       event_name: "payment_settled", status: :processed, state: s)
     d = OrderSaga.definition
     h = SagaForge::Dashboard::SagaGraph.new(d.to_graph, d, s).to_h
@@ -32,9 +31,9 @@ class SagaGraphTest < SagaForge::Dashboard::TestCase
 
   test "overlay colors a state by the worst of its events' statuses" do
     s = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "3", current_state: "awaiting_review")
-    SagaForge::Event.create!(event_id: "e1", saga_class: "OrderSaga", correlation_id: "3",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "3",
       event_name: "payment_settled", status: :processed, state: s)
-    SagaForge::Event.create!(event_id: "e2", saga_class: "OrderSaga", correlation_id: "3",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "3",
       event_name: "payment_failed", status: :failed, state: s)
     d = OrderSaga.definition
     h = SagaForge::Dashboard::SagaGraph.new(d.to_graph, d, s).to_h
@@ -56,9 +55,9 @@ class SagaGraphTest < SagaForge::Dashboard::TestCase
     # to awaiting_review — two distinct nodes, given deliberately opposite
     # statuses so a regression to a single scalar "worst status" (instead of
     # a per-node map) would show up as either node bleeding the other's color.
-    SagaForge::Event.create!(event_id: "e1", saga_class: "OrderSaga", correlation_id: "5",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "5",
       event_name: "payment_settled", status: :processed, state: s)
-    SagaForge::Event.create!(event_id: "e2", saga_class: "OrderSaga", correlation_id: "5",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "5",
       event_name: "review_passed", status: :failed, state: s)
     d = OrderSaga.definition
     h = SagaForge::Dashboard::SagaGraph.new(d.to_graph, d, s).to_h
@@ -74,7 +73,7 @@ class SagaGraphTest < SagaForge::Dashboard::TestCase
     s = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "6", current_state: "awaiting_settlement")
     # No handler declares this event; Definition#state_for_event returns nil
     # for it, exercising the `next unless node` guard in SagaGraph.
-    SagaForge::Event.create!(event_id: "e1", saga_class: "OrderSaga", correlation_id: "6",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "6",
       event_name: "totally_bogus_event", status: :failed, state: s)
     d = OrderSaga.definition
     h = nil

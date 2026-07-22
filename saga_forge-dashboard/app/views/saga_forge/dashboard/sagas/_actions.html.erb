@@ -5,7 +5,7 @@
     the model itself uses to no-op, kept here only for button visibility
     (the model is still the enforcement point; a stale button just flashes
     "Nothing to do."). Both require confirmation since they're one-way. %>
-<% recoverable = !@state.saga_definition.terminal?(@state.current_state) && @state.current_state != SagaForge::State::COMPENSATING.to_s %>
+<% recoverable = @state.finalized_at.nil? && @state.current_state != SagaForge::State::COMPENSATING.to_s %>
 <% if @stalled || @suspended || recoverable %>
   <div class="flex flex-wrap items-center gap-2">
     <% if @stalled %>

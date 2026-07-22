@@ -9,7 +9,7 @@ class BulkRecoveryJobTest < SagaForge::Dashboard::TestCase
   test "resumes every failed instance of the class" do
     2.times do |i|
       s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "b#{i}", current_state: "demo_waiting")
-      SagaForge::Event.create!(event_id: "e#{i}", saga_class: "DemoSaga", correlation_id: "b#{i}", event_name: "demo_done", status: :failed, state: s)
+      SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "b#{i}", event_name: "demo_done", status: :failed, state: s)
     end
     perform_enqueued_jobs(only: SagaForge::Dashboard::BulkRecoveryJob) do
       SagaForge::Dashboard::BulkRecoveryJob.perform_later("DemoSaga", "resume")
@@ -20,7 +20,7 @@ class BulkRecoveryJobTest < SagaForge::Dashboard::TestCase
   test "retries every stalled instance of the class" do
     2.times do |i|
       s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "s#{i}", current_state: "demo_waiting")
-      SagaForge::Event.create!(event_id: "st#{i}", saga_class: "DemoSaga", correlation_id: "s#{i}", event_name: "demo_done", status: :stalled, state: s)
+      SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "s#{i}", event_name: "demo_done", status: :stalled, state: s)
     end
     perform_enqueued_jobs(only: SagaForge::Dashboard::BulkRecoveryJob) do
       SagaForge::Dashboard::BulkRecoveryJob.perform_later("DemoSaga", "retry_stalled")

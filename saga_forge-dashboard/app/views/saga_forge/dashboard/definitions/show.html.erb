@@ -18,9 +18,6 @@
     <span class="inline-flex items-center gap-1.5">
       <span class="sf-legend-dash inline-block h-3 w-4 border-t-2 border-dashed border-[#8b5cf6]"></span>jump (<code>transition_to</code>)
     </span>
-    <span class="inline-flex items-center gap-1.5">
-      <span class="inline-block h-2.5 w-2.5 rounded-full border-2 border-[#94a3b8]"></span>stay (self-loop)
-    </span>
     <% {active: "current", processed: "processed event", stalled: "stalled event", failed: "failed event", none: "untouched"}.each do |status, label| %>
       <span class="inline-flex items-center gap-1.5">
         <span class="h-2.5 w-2.5 rounded-sm border sf-legend-<%= status %>"></span><%= label %>
@@ -28,8 +25,8 @@
     <% end %>
   </div>
   <p class="border-b border-[var(--sf-border)] px-4 py-2 text-[11px] text-[var(--sf-soft)]">
-    Jump and stay edges are best-effort: they're detected by scanning handler source for a
-    literal <code>transition_to</code> / <code>stay</code>, so a computed or conditional
+    Jump edges are best-effort: they're detected by scanning handler source for a
+    literal <code>transition_to</code>, so a computed or conditional
     transition may not appear here even though the saga can take it at runtime.
   </p>
   <%# The graph is passed as JSON in a data attribute, ERB-escaped, so labels

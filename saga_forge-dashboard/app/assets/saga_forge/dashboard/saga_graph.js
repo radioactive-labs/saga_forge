@@ -1,9 +1,9 @@
 // Renders a saga's state-machine graph (Definition#to_graph: start/state/
-// terminal nodes, chain/jump/stay edges) with Cytoscape + dagre, optionally
+// terminal nodes, chain/jump edges) with Cytoscape + dagre, optionally
 // overlaid with one saga instance's status. Reads the graph as JSON from
 // #sf-graph[data-graph] (structured elements, no text grammar) and paints
 // kind (node shape) + overlay status (fill/border) + edge kind (chain solid /
-// jump dashed / stay self-loop). Interactive: pan/zoom, and tapping a
+// jump dashed). Interactive: pan/zoom, and tapping a
 // node/edge shows its details and highlights its neighborhood.
 (function () {
   var el = document.getElementById("sf-graph");
@@ -69,12 +69,6 @@
     }},
     {selector: "edge.kind-jump", style: {
       "line-style": "dashed", "line-color": "#a78bfa", "target-arrow-color": "#8b5cf6", "color": "#7c3aed"
-    }},
-    {selector: "edge.kind-stay", style: {
-      // Self-loop: source === target, rendered as a loop off the node
-      // regardless of what the dagre layout otherwise does with the node.
-      "curve-style": "bezier", "loop-direction": "-30deg", "loop-sweep": "50deg",
-      "control-point-step-size": 40, "line-color": "#94a3b8", "target-arrow-color": "#94a3b8"
     }},
     {selector: "node.dim", style: {"opacity": 0.2}},
     {selector: "edge.dim", style: {"opacity": 0.12}},

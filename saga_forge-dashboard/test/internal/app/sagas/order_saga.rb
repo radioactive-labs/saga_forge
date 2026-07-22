@@ -1,8 +1,9 @@
 # Mirrors the core gem's OrderSaga shape (test/internal/app/sagas/order_saga.rb
-# there), with an added `stay` handler so the dashboard's graph fixtures exercise
-# all three edge kinds: chain (start -> awaiting_settlement -> awaiting_review ->
-# completed), jump (awaiting_review -> completed via transition_to), and stay
-# (awaiting_review loops on :more_info_needed).
+# there), with a second :awaiting_review handler so the dashboard's graph
+# fixtures exercise both edge kinds: chain (start -> awaiting_settlement ->
+# awaiting_review -> completed) and jump (awaiting_review -> completed via
+# transition_to, from either :review_passed or :more_info_needed). Sagas are
+# forward-only now, so :more_info_needed advances instead of looping.
 class OrderSaga < SagaForge::Base
   correlate_by :order_id
 
@@ -23,7 +24,7 @@ class OrderSaga < SagaForge::Base
   end
 
   during :awaiting_review, on: :more_info_needed do |saga, _payload|
-    saga.stay
+    saga.transition_to :completed
   end
 
   finish_with :completed

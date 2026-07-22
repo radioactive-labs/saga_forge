@@ -1,11 +1,19 @@
 <div class="mb-4 flex flex-wrap gap-2">
   <% base = {class: @saga_class.name} %>
   <% base[:q] = params[:q] if params[:q].present? %>
-  <% stats.counts.each do |key, n| %>
+  <% counts = stats.counts %>
+  <% counts.each do |key, n| %>
     <% href = (key == :all) ? base : base.merge(filter: key) %>
     <% active = (key == :all) ? params[:filter].blank? : params[:filter].to_s == key.to_s %>
     <%= link_to sagas_path(href), class: "sf-badge #{active ? "sf-badge-indigo" : "sf-badge-slate"}" do %>
       <%= key %> <span class="opacity-70"><%= stats.label(n) %></span>
     <% end %>
+  <% end %>
+  <%# "active" is the complement of "finalized" within "all" — derived here
+      rather than added to StatsQuery#counts to avoid a redundant scope. %>
+  <% active_n = counts[:all] - counts[:finalized] %>
+  <% active_filter_selected = params[:filter].to_s == "active" %>
+  <%= link_to sagas_path(base.merge(filter: "active")), class: "sf-badge #{active_filter_selected ? "sf-badge-indigo" : "sf-badge-slate"}" do %>
+    active <span class="opacity-70"><%= stats.label(active_n) %></span>
   <% end %>
 </div>

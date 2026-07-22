@@ -13,7 +13,8 @@ module SagaForge
           all: capped(base),
           stalled: capped(base.stalled),
           suspended: capped(base.suspended),
-          compensating: capped(base.compensating)
+          compensating: capped(base.compensating),
+          finalized: capped(base.finalized)
         }
       end
 

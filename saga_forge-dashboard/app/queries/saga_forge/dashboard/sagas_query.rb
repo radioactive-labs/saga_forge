@@ -46,6 +46,8 @@ module SagaForge
         when "stalled" then base.stalled
         when "suspended" then base.suspended
         when "compensating" then base.compensating
+        when "finalized" then base.finalized
+        when "active" then base.active
         when nil, "", "all" then base
         else base.where(current_state: @filter)
         end

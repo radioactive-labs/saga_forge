@@ -4,7 +4,7 @@ class TimelinePresenterTest < SagaForge::Dashboard::TestCase
   test "merges events and compensation progress" do
     s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "c1", current_state: "compensated",
       context: {"__saga_forge" => {"compensated" => ["undo_a"], "comp_attempts" => {"undo_a" => 1}}})
-    SagaForge::Event.create!(event_id: "e1", saga_class: "DemoSaga", correlation_id: "c1",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "c1",
       event_name: "demo_started", status: :processed, state: s, created_at: 2.minutes.ago)
     entries = SagaForge::Dashboard::TimelinePresenter.new(s).sorted
     kinds = entries.map(&:kind)
@@ -29,7 +29,7 @@ class TimelinePresenterTest < SagaForge::Dashboard::TestCase
 
   test "memoizes entries and sorted across repeated calls" do
     s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "c3", current_state: "x")
-    SagaForge::Event.create!(event_id: "e3", saga_class: "DemoSaga", correlation_id: "c3",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "c3",
       event_name: "demo_started", status: :processed, state: s)
     presenter = SagaForge::Dashboard::TimelinePresenter.new(s)
     assert_same presenter.entries, presenter.entries
@@ -41,7 +41,7 @@ class TimelinePresenterTest < SagaForge::Dashboard::TestCase
     total = SagaForge::Dashboard::TimelinePresenter::MAX_ENTRIES + 5
     now = Time.current
     rows = (1..total).map do |i|
-      {event_id: "e#{i}", saga_class: "DemoSaga", correlation_id: "c4", saga_forge_state_id: s.id,
+      {saga_class: "DemoSaga", correlation_id: "c4", saga_forge_state_id: s.id,
        event_name: "step_#{i}", status: 1, payload: {}, retry_budgets: {},
        created_at: now + i.seconds, updated_at: now + i.seconds}
     end

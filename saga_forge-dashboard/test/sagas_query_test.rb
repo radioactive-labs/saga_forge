@@ -25,11 +25,20 @@ class SagasQueryTest < SagaForge::Dashboard::TestCase
 
   test "stalled filter composes the derived scope" do
     s = mk("s1")
-    SagaForge::Event.create!(event_id: "e", saga_class: "DemoSaga", correlation_id: "s1",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "s1",
       event_name: "x", status: :stalled, state: s)
     mk("s2")
     q = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, filter: "stalled")
     assert_equal ["s1"], q.records.map(&:correlation_id)
+  end
+
+  test "finalized and active filters compose the derived scope" do
+    mk("done", state: "completed").update!(finalized_at: Time.current)
+    mk("waiting")
+    finalized_q = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, filter: "finalized")
+    active_q = SagaForge::Dashboard::SagasQuery.new(saga_class: DemoSaga, filter: "active")
+    assert_equal ["done"], finalized_q.records.map(&:correlation_id)
+    assert_equal ["waiting"], active_q.records.map(&:correlation_id)
   end
 
   test "correlation prefix search escapes like wildcards" do
