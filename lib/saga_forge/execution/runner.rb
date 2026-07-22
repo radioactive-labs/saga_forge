@@ -200,7 +200,6 @@ module SagaForge
       def resolve_next_state(definition, current, outcome)
         case outcome
         in nil then definition.successor_of(current).to_s
-        in :stay then current.to_s
         in [:transition_to, target] then target.to_s
         in [:fail, _] then State::COMPENSATING.to_s
         end

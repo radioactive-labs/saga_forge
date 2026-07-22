@@ -58,14 +58,17 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_equal 1, SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "8", event_name: "order_fulfilled").count
   end
 
-  test "stay keeps state but bumps version; loop exits when condition clears" do
+  test "forward-only: a single tick advances StaySaga straight to :done_counting" do
     run_all(publish_rows(:start_counting, counter_id: 1))
-    run_all(publish_rows(:tick_a, counter_id: 1))
     s = StaySaga.find_by_correlation(1)
     assert_equal "counting", s.current_state
+    assert_equal 1, s.version
+
+    run_all(publish_rows(:tick, counter_id: 1))
+    s.reload
+    assert_equal "done_counting", s.current_state
     assert_equal 2, s.version
-    run_all(publish_rows(:tick_b, counter_id: 1))
-    assert_equal "done_counting", StaySaga.find_by_correlation(1).current_state
+    assert_equal 1, s.context["n"]
   end
 
   test "transition_to jumps to a declared target" do

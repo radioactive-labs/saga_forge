@@ -3,9 +3,9 @@ require "test_helper"
 class OperatorApiTest < SagaForge::TestCase
   test "retry_stalled! re-delivers parked events in ledger order" do
     s = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "1", current_state: "awaiting_settlement")
-    e2 = SagaForge::Event.create!(event_id: "o2", saga_class: "OrderSaga", correlation_id: "1",
+    e2 = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "1",
       event_name: "payment_failed", status: :stalled, stall_count: 40, state: s, created_at: 1.minute.ago)
-    e1 = SagaForge::Event.create!(event_id: "o1", saga_class: "OrderSaga", correlation_id: "1",
+    e1 = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "1",
       event_name: "payment_settled", status: :stalled, stall_count: 40, state: s, created_at: 2.minutes.ago)
     assert s.retry_stalled!
     assert e1.reload.pending?
@@ -17,7 +17,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "resume! fully resets failed events" do
     s = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "2", current_state: "awaiting_settlement")
-    e = SagaForge::Event.create!(event_id: "o3", saga_class: "OrderSaga", correlation_id: "2",
+    e = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "2",
       event_name: "payment_settled", status: :failed, attempts: 3,
       retry_budgets: {"X" => 3}, error: {"class" => "X"}, state: s)
     assert s.resume!
@@ -32,7 +32,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "retry_stalled! and resume! no-op (and warn) on terminal or compensating sagas" do
     done = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "54", current_state: "completed")
-    stalled = SagaForge::Event.create!(event_id: "o5", saga_class: "OrderSaga", correlation_id: "54",
+    stalled = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "54",
       event_name: "payment_settled", status: :stalled, state: done)
     logged = capture_saga_log(:warn) { refute done.retry_stalled! }
     assert_match(/retry_stalled!/, logged)
@@ -40,7 +40,7 @@ class OperatorApiTest < SagaForge::TestCase
     assert_no_enqueued_jobs only: SagaForge::ExecutionJob
 
     comping = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "55", current_state: "compensating")
-    failed = SagaForge::Event.create!(event_id: "o6", saga_class: "OrderSaga", correlation_id: "55",
+    failed = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "55",
       event_name: "payment_settled", status: :failed, state: comping)
     logged = capture_saga_log(:warn) { refute comping.resume! }
     assert_match(/resume!/, logged)
@@ -56,7 +56,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "resume! then reprocessing completes the saga (resume-then-compensate part 1)" do
     # Drive FlakySaga to a failed event, then fix the payload and resume
-    e = SagaForge.publish(:flaky_started, event_id: "op-r1", id: "opr1", mode: "unmatched").first
+    e = SagaForge.publish(:flaky_started, id: "opr1", mode: "unmatched").first
     SagaForge::Execution::Runner.new(e).call
     assert e.reload.failed?
     s = FlakySaga.find_by_correlation("opr1")
@@ -70,7 +70,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "cancel! compensates then lands in :cancelled with reason" do
     perform_enqueued_jobs do
-      SagaForge.publish(:lifo_order_placed, event_id: "op-c1", order_id: 50)
+      SagaForge.publish(:lifo_order_placed, order_id: 50)
     end
     s = LifoOrderSaga.find_by_correlation(50)
     perform_enqueued_jobs { s.cancel!(reason: "operator") }
@@ -82,7 +82,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "compensate! warns when failed events exist but still proceeds" do
     s = SagaForge::State.create!(saga_class: "LifoOrderSaga", correlation_id: "51", current_state: "awaiting_settlement")
-    SagaForge::Event.create!(event_id: "o4", saga_class: "LifoOrderSaga", correlation_id: "51",
+    SagaForge::Event.create!(saga_class: "LifoOrderSaga", correlation_id: "51",
       event_name: "lifo_payment_settled", status: :failed, state: s)
     logged = capture_saga_log(:warn) { assert s.compensate! }
     assert_match(/resume!/, logged)
@@ -102,7 +102,7 @@ class OperatorApiTest < SagaForge::TestCase
 
   test "compensate! does not warn about failed events when the saga is already terminal" do
     done = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "57", current_state: "completed")
-    SagaForge::Event.create!(event_id: "o7", saga_class: "OrderSaga", correlation_id: "57",
+    SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "57",
       event_name: "payment_settled", status: :failed, state: done)
     logged = capture_saga_log(:warn) { refute done.compensate! }
     assert_empty logged

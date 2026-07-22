@@ -2,7 +2,7 @@ require "test_helper"
 
 class RetryIntegrationTest < SagaForge::TestCase
   def row(mode:, corr: SecureRandom.hex(4))
-    SagaForge.publish(:flaky_started, event_id: "f:#{mode}:#{corr}", id: corr, mode: mode).first
+    SagaForge.publish(:flaky_started, id: corr, mode: mode).first
   end
 
   test "retryable error increments attempts and budget, stays pending, returns backoff" do
@@ -25,8 +25,12 @@ class RetryIntegrationTest < SagaForge::TestCase
     assert_equal "FlakySaga::FatalError", e.error["class"]
     assert e.error["backtrace"].any?
 
-    sibling = SagaForge::Event.create!(event_id: "sib:halt1", saga_class: "FlakySaga",
-      correlation_id: "halt1", event_name: "flaky_started", payload: {})
+    # Any other pending row for this instance — the halted? check fires
+    # before event_name is ever consulted, so a distinct name here (required
+    # by the structural (saga_class, correlation_id, event_name) unique
+    # index) still proves a failed sibling blocks it.
+    sibling = SagaForge::Event.create!(saga_class: "FlakySaga",
+      correlation_id: "halt1", event_name: "flaky_retry_probe", payload: {})
     assert_equal [:done], SagaForge::Execution::Runner.new(sibling).call
     assert sibling.reload.pending?
   end
@@ -56,7 +60,7 @@ class RetryIntegrationTest < SagaForge::TestCase
   end
 
   test "plain (non-composite) policy does not write retry_budgets" do
-    e = SagaForge.publish(:plain_started, event_id: "p:#{SecureRandom.hex(4)}", id: "1").first
+    e = SagaForge.publish(:plain_started, id: "1").first
     outcome, = SagaForge::Execution::Runner.new(e).call
     assert_equal :retry, outcome
     assert_equal({}, e.reload.retry_budgets)
@@ -80,7 +84,7 @@ class RetryIntegrationTest < SagaForge::TestCase
   # policy (max_attempts: 2) exhausts exactly on the counted 2nd attempt.
   test "concurrent deliveries reading stale attempts never lose the increment" do
     id = SecureRandom.hex(4)
-    first = SagaForge.publish(:plain_started, event_id: "p:#{id}", id: id).first
+    first = SagaForge.publish(:plain_started, id: id).first
 
     e1 = SagaForge::Event.find(first.id)
     e2 = SagaForge::Event.find(first.id) # separate in-memory copy, also stale attempts: 0

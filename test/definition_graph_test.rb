@@ -34,13 +34,6 @@ class DefinitionGraphTest < SagaForge::TestCase
     assert_includes jumps, ["awaiting_review", "completed"]
   end
 
-  test "stay self-loop detected" do
-    # StaySaga (existing fixture) loops in :counting on :tick
-    g = StaySaga.definition.to_graph
-    stays = g.edges.select { |e| e.kind == :stay }.map { |e| [e.from, e.to] }
-    assert_includes stays, ["counting", "counting"]
-  end
-
   test "graph and members are frozen and serialize to_h" do
     g = OrderSaga.definition.to_graph
     assert g.frozen?

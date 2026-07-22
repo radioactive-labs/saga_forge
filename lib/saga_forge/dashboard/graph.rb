@@ -12,7 +12,7 @@ module SagaForge
       def to_h = {id: id, label: label, kind: kind}
     end
 
-    # kind: :chain (complete) | :jump (best-effort) | :stay (best-effort self-loop)
+    # kind: :chain (complete) | :jump (best-effort)
     Edge = Struct.new(:from, :to, :kind, :label) do
       def to_h = {from: from, to: to, kind: kind, label: label}
     end

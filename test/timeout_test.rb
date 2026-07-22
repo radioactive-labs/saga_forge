@@ -3,7 +3,7 @@ require "test_helper"
 class TimeoutTest < SagaForge::TestCase
   test "commit arms one timeout job per timeout-declaring handler with post-commit version" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:t_started, event_id: "t1", id: 1)
+      SagaForge.publish(:t_started, id: 1)
     end
     s = TimeoutSaga.find_by_correlation(1)
     assert_equal "waiting", s.current_state
@@ -14,7 +14,7 @@ class TimeoutTest < SagaForge::TestCase
 
   test "handled event resets the clock: stale timer discards silently" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:t_started, event_id: "t2", id: 2)
+      SagaForge.publish(:t_started, id: 2)
     end
     s = TimeoutSaga.find_by_correlation(2)
     SagaForge::TimeoutJob.perform_now(s.id, "t_arrived", 99) # wrong version
@@ -28,7 +28,7 @@ class TimeoutTest < SagaForge::TestCase
 
   test "on_timeout fail! compensates with timeout reason" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:t_started, event_id: "t3", id: 3)
+      SagaForge.publish(:t_started, id: 3)
     end
     s = TimeoutSaga.find_by_correlation(3)
     perform_enqueued_jobs do
@@ -43,8 +43,8 @@ class TimeoutTest < SagaForge::TestCase
   test "on_timeout state branch transitions, re-delivers parked, processes to finish" do
     SagaForge.configure { |c| c.stall_budget = 1 }
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:tb_started, event_id: "t4", id: 4)
-      SagaForge.publish(:tb_slow, event_id: "t5", id: 4) # early — parks
+      SagaForge.publish(:tb_started, id: 4)
+      SagaForge.publish(:tb_slow, id: 4) # early — parks
     end
     s = TimeoutBranchSaga.find_by_correlation(4)
     assert_equal "waiting_fast", s.current_state
@@ -100,17 +100,17 @@ class TimeoutTest < SagaForge::TestCase
     end
   end
 
-  test "stay re-arms: each handled event in a timeout state produces a fresh timer" do
+  test "on_timeout fires on :st_waiting when no st_tick ever arrives" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:st_started, event_id: "st1", id: 5)
-    end
-    clear_enqueued_jobs
-    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:st_tick, event_id: "st2", id: 5)
+      SagaForge.publish(:st_started, id: 5)
     end
     s = StayTimeoutSaga.find_by_correlation(5)
-    armed = enqueued_jobs.select { |j| j["job_class"] == "SagaForge::TimeoutJob" }
-    assert_equal 1, armed.size
-    assert_equal s.version, armed.first["arguments"].last # armed at fresh post-commit version
+    assert_equal "st_waiting", s.current_state
+    perform_enqueued_jobs do
+      SagaForge::TimeoutJob.perform_now(s.id, "st_tick", s.version)
+    end
+    s.reload
+    assert_equal "compensated", s.current_state
+    assert_equal "timeout", s.context.dig("__saga_forge", "failure_reason")
   end
 end

@@ -2,7 +2,7 @@ require "test_helper"
 
 class ExecutionLifecycleTest < SagaForge::TestCase
   def make_event(name: "payment_settled", corr: "1", status: :pending, **attrs)
-    SagaForge::Event.create!(event_id: SecureRandom.uuid, saga_class: "OrderSaga",
+    SagaForge::Event.create!(saga_class: "OrderSaga",
       correlation_id: corr, event_name: name, status: status, payload: {}, **attrs)
   end
 
@@ -34,7 +34,11 @@ class ExecutionLifecycleTest < SagaForge::TestCase
   test "processed, stalled, and failed rows exit immediately" do
     make_state
     %i[processed stalled failed].each do |st|
-      e = make_event(status: st, corr: "1")
+      # Distinct event_name per status: the structural (saga_class,
+      # correlation_id, event_name) unique index means three rows can't
+      # otherwise share one correlation_id — event_name is irrelevant here
+      # since a non-pending row returns [:done] before it's ever consulted.
+      e = make_event(status: st, corr: "1", name: "payment_settled_#{st}")
       assert_equal [:done], SagaForge::Execution::Runner.new(e).call
       assert_equal st.to_s, e.reload.status
     end

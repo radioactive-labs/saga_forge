@@ -14,7 +14,7 @@ require "test_helper"
 # booted.
 class ConcurrencyControlsTest < SagaForge::TestCase
   test "ExecutionJob::CONCURRENCY_KEY resolves a found row to a per-saga lock, else a shared miss key" do
-    e = SagaForge::Event.create!(event_id: "cc1", saga_class: "OrderSaga",
+    e = SagaForge::Event.create!(saga_class: "OrderSaga",
       correlation_id: "7", event_name: "order_placed")
     assert_equal "SagaLock:OrderSaga:7", SagaForge::ExecutionJob::CONCURRENCY_KEY.call(e.id)
     assert_equal "SagaLock:none", SagaForge::ExecutionJob::CONCURRENCY_KEY.call(-1)

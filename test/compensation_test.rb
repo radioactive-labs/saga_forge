@@ -3,9 +3,9 @@ require "test_helper"
 class CompensationTest < SagaForge::TestCase
   test "fail! compensates processed steps LIFO and lands in :compensated" do
     perform_enqueued_jobs do
-      SagaForge.publish(:lifo_order_placed, event_id: "c1", order_id: 5, total: 9)
-      SagaForge.publish(:lifo_payment_settled, event_id: "c2", order_id: 5)
-      SagaForge.publish(:lifo_payment_failed, event_id: "c3", order_id: 5, code: "card_declined")
+      SagaForge.publish(:lifo_order_placed, order_id: 5, total: 9)
+      SagaForge.publish(:lifo_payment_settled, order_id: 5)
+      SagaForge.publish(:lifo_payment_failed, order_id: 5, code: "card_declined")
     end
     s = LifoOrderSaga.find_by_correlation(5)
     assert_equal "compensated", s.current_state
@@ -18,37 +18,56 @@ class CompensationTest < SagaForge::TestCase
 
   test "fail! discards staged publishes from the failing block" do
     perform_enqueued_jobs do
-      SagaForge.publish(:order_placed, event_id: "d1", order_id: 6, shipment_ref: "S", total: 9)
-      SagaForge.publish(:payment_failed, event_id: "d2", order_id: 6, code: "x")
+      SagaForge.publish(:order_placed, order_id: 6, shipment_ref: "S", total: 9)
+      SagaForge.publish(:payment_failed, order_id: 6, code: "x")
     end
-    failing_event = SagaForge::Event.find_by(event_name: "payment_failed", correlation_id: "6")
-    assert_equal 0, SagaForge::Event.where("event_id LIKE ?", "staged:#{failing_event.id}:%").count
+    # payment_failed's handler fails before ever reaching payment_settled's
+    # `saga.publish :order_fulfilled` — so no order_fulfilled row for order 6
+    # should exist, structurally identified by (saga_class, correlation_id,
+    # event_name) rather than a synthetic staged event_id.
+    assert_equal 0, SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "6", event_name: "order_fulfilled").count
   end
 
   test "fail! with empty compensation ledger terminates :compensated with reason" do
-    perform_enqueued_jobs { SagaForge.publish(:doomed, event_id: "e1", id: 1) }
+    perform_enqueued_jobs { SagaForge.publish(:doomed, id: 1) }
     s = FailFastSaga.find_by_correlation(1)
     assert_equal "compensated", s.current_state
     assert_equal "no", s.context.dig("__saga_forge", "failure_reason")
     assert_empty(s.context.dig("__saga_forge", "compensated") || [])
   end
 
-  test "stay loop owes one compensation run with full accumulated context" do
+  test "two distinct events sharing one compensation handler owe a single compensation run" do
+    # Structural dedup means a saga instance handles each event name at most
+    # once, so the old stay-loop ("N item_packed -> one unpack") no longer
+    # exists. The equivalent coverage now: TWO DIFFERENT events (item_packed,
+    # box_sealed) each declare compensate: :unpack, so once both have
+    # processed, CompensationRunner#next_owed (which dedups the derived
+    # ledger by compensation name) must still owe exactly one :unpack run.
     perform_enqueued_jobs do
-      SagaForge.publish(:pack_started, event_id: "p0", box_id: 1)
-      3.times { |i| SagaForge.publish(:item_packed, event_id: "p#{i + 1}", box_id: 1) }
-      SagaForge.publish(:audit_failed, event_id: "p9", box_id: 1)
+      SagaForge.publish(:pack_started, box_id: 1)
+      SagaForge.publish(:item_packed, box_id: 1) # -> :sealing, compensate: :unpack
+      SagaForge.publish(:box_sealed, box_id: 1) # -> :packed, compensate: :unpack (same handler)
     end
     s = PackSaga.find_by_correlation(1)
+    assert_equal "packed", s.current_state
+    assert_equal 1, s.context["items"]
+    assert_equal true, s.context["sealed"]
+
+    # Both forward steps already committed as :processed events; force the
+    # compensating handoff directly (same pattern as "crash-resume skips
+    # completed compensations" above) rather than through a forward fail!,
+    # since :packed is terminal and there is no more forward event to fail on.
+    s.update!(current_state: "compensating", version: s.version + 1)
+    SagaForge::CompensationRunner.new(s.reload).call
+    s.reload
     assert_equal "compensated", s.current_state
-    assert_equal 3, s.context["items"]
     assert_equal 1, s.context["unpack_runs"]
   end
 
   test "compensation retries tolerantly then records comp_error and stays compensating" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:broken_started, event_id: "b1", id: 1)
-      SagaForge.publish(:broken_go, event_id: "b2", id: 1)
+      SagaForge.publish(:broken_started, id: 1)
+      SagaForge.publish(:broken_go, id: 1)
     end
     s = BrokenCompSaga.find_by_correlation(1)
     assert_equal "compensating", s.current_state
@@ -77,8 +96,8 @@ class CompensationTest < SagaForge::TestCase
 
   test "crash-resume skips completed compensations (derived minus done)" do
     perform_enqueued_jobs do
-      SagaForge.publish(:order_placed, event_id: "r1", order_id: 77, shipment_ref: "S", total: 2)
-      SagaForge.publish(:payment_settled, event_id: "r2", order_id: 77)
+      SagaForge.publish(:order_placed, order_id: 77, shipment_ref: "S", total: 2)
+      SagaForge.publish(:payment_settled, order_id: 77)
     end
     s = OrderSaga.find_by_correlation(77)
     # Simulate: fail! happened and release_stock already ran, then a crash.
@@ -96,9 +115,9 @@ class CompensationTest < SagaForge::TestCase
 
   test "run_one raises ConcurrencyConflict on a stale entry_version and writes nothing" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:lifo_order_placed, event_id: "cv1", order_id: 51, total: 3)
-      SagaForge.publish(:lifo_payment_settled, event_id: "cv2", order_id: 51)
-      SagaForge.publish(:lifo_payment_failed, event_id: "cv3", order_id: 51, code: "x")
+      SagaForge.publish(:lifo_order_placed, order_id: 51, total: 3)
+      SagaForge.publish(:lifo_payment_settled, order_id: 51)
+      SagaForge.publish(:lifo_payment_failed, order_id: 51, code: "x")
     end
     s = LifoOrderSaga.find_by_correlation(51)
     assert_equal "compensating", s.current_state
@@ -119,9 +138,9 @@ class CompensationTest < SagaForge::TestCase
 
   test "concurrent compensation runners converge without clobbering committed progress" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:lifo_order_placed, event_id: "cc1", order_id: 52, total: 3)
-      SagaForge.publish(:lifo_payment_settled, event_id: "cc2", order_id: 52)
-      SagaForge.publish(:lifo_payment_failed, event_id: "cc3", order_id: 52, code: "x")
+      SagaForge.publish(:lifo_order_placed, order_id: 52, total: 3)
+      SagaForge.publish(:lifo_payment_settled, order_id: 52)
+      SagaForge.publish(:lifo_payment_failed, order_id: 52, code: "x")
     end
     s = LifoOrderSaga.find_by_correlation(52)
     assert_equal "compensating", s.current_state
@@ -156,14 +175,14 @@ class CompensationTest < SagaForge::TestCase
 
   test "the execution guard covers compensation blocks too — SagaForge.publish still raises" do
     assert_raises(SagaForge::UnstagedPublishError) do
-      SagaForge.guarding_execution { SagaForge.publish(:lifo_order_placed, event_id: "guard1", order_id: 999) }
+      SagaForge.guarding_execution { SagaForge.publish(:lifo_order_placed, order_id: 999) }
     end
   end
 
   test "compensation blocks can publish; staged rows deliver after their commit" do
     perform_enqueued_jobs do
-      SagaForge.publish(:nc_started, event_id: "n1", id: 3)
-      SagaForge.publish(:nc_fail, event_id: "n2", id: 3)
+      SagaForge.publish(:nc_started, id: 3)
+      SagaForge.publish(:nc_fail, id: 3)
     end
     s = NotifyCompSaga.find_by_correlation(3)
     assert_equal "compensated", s.current_state

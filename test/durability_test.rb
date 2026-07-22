@@ -24,7 +24,7 @@ class DurabilityTest < SagaForge::TestCase
   setup { GlitchSaga.attempts_seen = 0 }
 
   test "no ghost cascade: staged publish from a failed pass never surfaces" do
-    row = SagaForge.publish(:g_started, event_id: "dur-g1", id: 1).first
+    row = SagaForge.publish(:g_started, id: 1).first
 
     outcome, = SagaForge::Execution::Runner.new(row).call # pass 1: raises mid-block
     assert_equal :retry, outcome
@@ -39,7 +39,7 @@ class DurabilityTest < SagaForge::TestCase
 
   test "re-delivery after commit is a processed-skip, no double staged insert" do
     GlitchSaga.attempts_seen = 99 # no glitch this pass
-    row = SagaForge.publish(:g_started, event_id: "dur-g2", id: 2).first
+    row = SagaForge.publish(:g_started, id: 2).first
 
     assert_equal [:done], SagaForge::Execution::Runner.new(row).call
     assert_equal [:done], SagaForge::Execution::Runner.new(row.reload).call # re-delivery: processed-skip
@@ -48,12 +48,12 @@ class DurabilityTest < SagaForge::TestCase
 
   test "concurrent version race over an existing instance: loser retries, exactly one commit lands" do
     GlitchSaga.attempts_seen = 99
-    start_row = SagaForge.publish(:g_started, event_id: "dur-g3", id: 3).first
+    start_row = SagaForge.publish(:g_started, id: 3).first
     assert_equal [:done], SagaForge::Execution::Runner.new(start_row).call
     state = GlitchSaga.find_by_correlation(3)
     assert_equal "awaiting_g_echo", state.current_state
 
-    e = SagaForge.publish(:g_advance, event_id: "dur-g3-adv", id: 3).first
+    e = SagaForge.publish(:g_advance, id: 3).first
     runner = SagaForge::Execution::Runner.new(e)
     original_commit = runner.method(:commit!)
     runner.define_singleton_method(:commit!) do |*args|
@@ -80,10 +80,10 @@ class DurabilityTest < SagaForge::TestCase
   # CompensationJob enqueue strands it forever unless the sweeper recovers it.
   test "crash window: fail! commits but the CompensationJob enqueue is lost — sweeper recovers" do
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:order_placed, event_id: "dur-crash-a1", order_id: 900, shipment_ref: "S1", total: 5)
+      SagaForge.publish(:order_placed, order_id: 900, shipment_ref: "S1", total: 5)
     end
     perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
-      SagaForge.publish(:payment_failed, event_id: "dur-crash-a2", order_id: 900, code: "declined")
+      SagaForge.publish(:payment_failed, order_id: 900, code: "declined")
     end
     s = OrderSaga.find_by_correlation(900)
     assert_equal "compensating", s.current_state, "fail! must have committed for real before we simulate the crash"
@@ -111,7 +111,7 @@ class DurabilityTest < SagaForge::TestCase
     # is still :stalled, and nobody else will ever flip it back to pending.
     state = SagaForge::State.create!(saga_class: "GlitchSaga", correlation_id: "4",
       current_state: "awaiting_g_echo")
-    parked = SagaForge::Event.create!(event_id: "dur-crash-b", saga_class: "GlitchSaga",
+    parked = SagaForge::Event.create!(saga_class: "GlitchSaga",
       correlation_id: "4", event_name: "g_advance", status: :stalled, stall_count: 40,
       state: state, updated_at: 5.minutes.ago)
 

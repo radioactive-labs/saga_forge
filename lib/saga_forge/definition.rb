@@ -115,15 +115,7 @@ module SagaForge
       end.uniq
     end
 
-    # Best-effort literal scan for `stay` / `saga.stay` inside each handler
-    # block's exact extent (same scan_handlers machinery as jump_targets).
-    # Returns the set of states whose handler can loop. Computed/conditional
-    # stays the scan can't see are omitted, matching jump_targets' honesty.
-    def stay_targets
-      scan_handlers(/(?:^|[^.\w])(?:saga\.)?stay\b/).map { |(state, _match)| state }.uniq
-    end
-
-    # Structured graph (chain + jump + stay), the sibling of to_mermaid.
+    # Structured graph (chain + jump), the sibling of to_mermaid.
     def to_graph
       nodes = [SagaForge::Dashboard::Node.new(id: START.to_s, label: "start", kind: :start)]
       (@states - @terminal_states).each do |s|
@@ -135,8 +127,8 @@ module SagaForge
       # below) — the normal multi-terminal pattern. A terminal reached only
       # by a computed/conditional transition, or not reached at all, has no
       # edge and renders as an isolated node: that's deliberate, not a bug —
-      # it's the same best-effort honesty jump/stay already carry (a wrong
-      # edge is worse than a missing one).
+      # it's the same best-effort honesty jump_targets already carries (a
+      # wrong edge is worse than a missing one).
       @terminal_states.each do |s|
         nodes << SagaForge::Dashboard::Node.new(id: s.to_s, label: s.to_s, kind: :terminal)
       end
@@ -151,9 +143,6 @@ module SagaForge
         from_id = (from == "[*]") ? START.to_s : from.to_s
         edges << SagaForge::Dashboard::Edge.new(from: from_id, to: to.to_s, kind: :jump, label: "jump")
       end
-      stay_targets.each do |state|
-        edges << SagaForge::Dashboard::Edge.new(from: state.to_s, to: state.to_s, kind: :stay, label: "stay")
-      end
 
       nodes.each(&:freeze)
       edges.each(&:freeze)
@@ -162,7 +151,7 @@ module SagaForge
 
     private
 
-    # Shared block-extent scanner for jump_targets/stay_targets. Yields, for
+    # Shared block-extent scanner for jump_targets. Yields, for
     # every line within every handler's EXACT block extent, the handler's
     # state paired with whatever String#scan produces for that regex (the
     # full match, or its capture groups) — so two sagas sharing one file
