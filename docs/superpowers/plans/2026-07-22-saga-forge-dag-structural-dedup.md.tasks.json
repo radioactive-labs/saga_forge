@@ -12,7 +12,8 @@
     {"id": 8, "subject": "Task 8: Sweeper + retention use persisted fields", "status": "completed", "blockedBy": [7]},
     {"id": 9, "subject": "Task 9: Dashboard — finalized vs active", "status": "completed", "blockedBy": [7]},
     {"id": 10, "subject": "Task 10: Docs + full-suite green", "status": "completed"},
-    {"id": 11, "subject": "Task 11: Commit to Rails-required (remove standalone guards)", "status": "completed"}
+    {"id": 11, "subject": "Task 11: Commit to Rails-required (remove standalone guards)", "status": "completed"},
+    {"id": 12, "subject": "Task 12: Fix final-review findings (TimeoutJob guard + last_active_at coverage)", "status": "completed"}
   ],
   "lastUpdated": "2026-07-22"
 }
