@@ -55,7 +55,7 @@ module SagaForge
         )
         context["__saga_forge"] = meta
         state.update!(current_state: State::COMPENSATING.to_s,
-          version: state.version + 1, context: context)
+          version: state.version + 1, context: context, last_active_at: Time.current)
         transitioned = true
       end
       CompensationJob.perform_later(state.id) if transitioned
@@ -71,10 +71,20 @@ module SagaForge
         raise UnknownStateError, "on_timeout: #{target} is not a declared state"
       end
 
+      begin
+        guard_forward_only!(definition, state.saga_class, state.correlation_id, state.current_state, target)
+      rescue ForwardOnlyError => e
+        Rails.logger.error { "[saga_forge] timeout branch rejected: #{e.message}" }
+        return
+      end
+
       transitioned = false
       state.with_lock do
         break if state.version != armed_version
-        state.update!(current_state: target, version: state.version + 1)
+        now = Time.current
+        finalized = definition.terminal?(target.to_sym) ? now : nil
+        state.update!(current_state: target, version: state.version + 1,
+          last_active_at: now, finalized_at: finalized)
         transitioned = true
       end
       return unless transitioned

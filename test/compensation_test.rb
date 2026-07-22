@@ -71,11 +71,16 @@ class CompensationTest < SagaForge::TestCase
     end
     s = BrokenCompSaga.find_by_correlation(1)
     assert_equal "compensating", s.current_state
+    pre_failure_active_at = s.last_active_at
 
     outcome, wait = SagaForge::CompensationRunner.new(s.reload).call
     assert_equal :retry, outcome
     assert wait.to_f.positive?
-    assert_equal 1, s.reload.context.dig("__saga_forge", "comp_attempts", "explode")
+    s.reload
+    assert_equal 1, s.context.dig("__saga_forge", "comp_attempts", "explode")
+    assert_not_nil s.last_active_at
+    assert(pre_failure_active_at.nil? || s.last_active_at > pre_failure_active_at,
+      "record_comp_error must refresh last_active_at so a legitimately-retrying compensation doesn't look stranded to the sweeper")
 
     # Minitest 6 dropped Object#stub (minitest/mock is no longer bundled), so
     # swap the class method directly and restore it after — same intent as

@@ -148,7 +148,9 @@ module SagaForge
       def commit!(definition, state_row, current, entry_version, facade)
         failing = facade.outcome.is_a?(Array) && facade.outcome.first == :fail
         next_state = resolve_next_state(definition, current, facade.outcome)
-        guard_forward_only!(definition, current, next_state) unless next_state == State::COMPENSATING.to_s
+        unless next_state == State::COMPENSATING.to_s
+          guard_forward_only!(definition, event.saga_class, event.correlation_id, current, next_state)
+        end
         @inserted_rows = []
 
         State.transaction do
@@ -212,23 +214,6 @@ module SagaForge
         in [:transition_to, target] then target.to_s
         in [:fail, _] then State::COMPENSATING.to_s
         end
-      end
-
-      # Forward-only: a saga never re-enters a state it has resided in, so it
-      # handles each event name at most once (the invariant the structural
-      # dedup index relies on). Visited states are derived from the ledger —
-      # every processed event's registered state — plus the state we're in
-      # now. Covers fall-through advances AND transition_to, since a rejoin
-      # followed by a normal advance could otherwise re-enter a visited state.
-      def guard_forward_only!(definition, current, next_state)
-        visited = Event.processed
-          .for_instance(event.saga_class, event.correlation_id)
-          .pluck(:event_name)
-          .filter_map { |name| definition.state_for_event(name)&.to_s }
-        visited << current.to_s
-        return unless visited.include?(next_state)
-        raise ForwardOnlyError,
-          "#{event.saga_class}##{event.correlation_id}: advance to #{next_state} re-enters a visited state — sagas are forward-only"
       end
 
       def record_forward_violation(error)

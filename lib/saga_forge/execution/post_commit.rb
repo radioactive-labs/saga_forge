@@ -32,6 +32,22 @@ module SagaForge
             .perform_later(state.id, event_name.to_s, state.version)
         end
       end
+
+      # Forward-only: a saga never re-enters a state it has resided in, so it
+      # handles each event name at most once (the invariant structural dedup
+      # relies on). Visited = every processed event's registered state, plus
+      # the current state. Covers fall-through, transition_to, AND timeout
+      # branches. Raises ForwardOnlyError on a re-entry.
+      def guard_forward_only!(definition, saga_class, correlation_id, current, next_state)
+        visited = Event.processed
+          .for_instance(saga_class, correlation_id)
+          .pluck(:event_name)
+          .filter_map { |name| definition.state_for_event(name)&.to_s }
+        visited << current.to_s
+        return unless visited.include?(next_state)
+        raise ForwardOnlyError,
+          "#{saga_class}##{correlation_id}: advance to #{next_state} re-enters a visited state — sagas are forward-only"
+      end
     end
   end
 end

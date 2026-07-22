@@ -125,7 +125,7 @@ module SagaForge
         end
 
         context["__saga_forge"] = meta
-        state.update!(context: context)
+        state.update!(context: context, last_active_at: Time.current)
       end
       backoff ? [:retry, backoff] : [:done]
     end

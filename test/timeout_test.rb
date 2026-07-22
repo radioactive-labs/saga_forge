@@ -38,6 +38,7 @@ class TimeoutTest < SagaForge::TestCase
     assert_equal "compensated", s.current_state
     assert_equal "timeout", s.context.dig("__saga_forge", "failure_reason")
     assert_equal true, s.context["undone"]
+    assert_not_nil s.last_active_at
   end
 
   test "on_timeout state branch transitions, re-delivers parked, processes to finish" do
@@ -48,10 +49,56 @@ class TimeoutTest < SagaForge::TestCase
     end
     s = TimeoutBranchSaga.find_by_correlation(4)
     assert_equal "waiting_fast", s.current_state
+    pre_branch_active_at = s.last_active_at
     perform_enqueued_jobs do
       SagaForge::TimeoutJob.perform_now(s.id, "tb_fast", s.version)
     end
-    assert_equal "tb_finished", s.reload.current_state
+    s.reload
+    assert_equal "tb_finished", s.current_state
+    assert_not_nil s.last_active_at
+    assert s.last_active_at > pre_branch_active_at if pre_branch_active_at
+  end
+
+  test "a backward on_timeout branch is rejected: saga stays put, error logged, not silently applied" do
+    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
+      SagaForge.publish(:bt_started, id: 6)
+      SagaForge.publish(:bt_go, id: 6)
+    end
+    s = BackwardTimeoutSaga.find_by_correlation(6)
+    assert_equal "bt_b", s.current_state
+    pre_version = s.version
+    pre_active_at = s.last_active_at
+
+    logged = nil
+    original_error = Rails.logger.method(:error)
+    Rails.logger.define_singleton_method(:error) { |&blk| logged = blk.call }
+    begin
+      SagaForge::TimeoutJob.perform_now(s.id, "bt_never", s.version)
+    ensure
+      Rails.logger.define_singleton_method(:error, original_error)
+    end
+
+    s.reload
+    assert_equal "bt_b", s.current_state, "backward timeout branch must not silently apply"
+    assert_equal pre_version, s.version
+    assert_equal pre_active_at, s.last_active_at
+    assert_match(/forward-only|re-enters/, logged.to_s)
+  end
+
+  test "on_timeout branch to a terminal state stamps finalized_at" do
+    perform_enqueued_jobs(only: SagaForge::ExecutionJob) do
+      SagaForge.publish(:tt_started, id: 7)
+    end
+    s = TerminalTimeoutSaga.find_by_correlation(7)
+    assert_equal "tt_waiting", s.current_state
+    assert_nil s.finalized_at
+    perform_enqueued_jobs do
+      SagaForge::TimeoutJob.perform_now(s.id, "tt_never", s.version)
+    end
+    s.reload
+    assert_equal "tt_done", s.current_state
+    assert_not_nil s.finalized_at
+    assert_not_nil s.last_active_at
   end
 
   test "undeclared on_timeout target raises loudly" do
