@@ -1,3 +1,5 @@
+require "rails/railtie"
+
 module SagaForge
   # The router needs every saga class loaded to resolve recipients; lazy
   # autoloading in dev would silently drop recipients. Eager-load app/sagas

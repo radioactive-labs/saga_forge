@@ -49,8 +49,7 @@ module SagaForge
     # PK type for engine tables: explicit config → host generator config → Rails default.
     def primary_key_type
       config.primary_key_type ||
-        (defined?(Rails.application) && Rails.application &&
-          Rails.application.config.generators.options.dig(:active_record, :primary_key_type)) ||
+        Rails.application&.config&.generators&.options&.dig(:active_record, :primary_key_type) ||
         :primary_key
     end
 
@@ -79,4 +78,4 @@ module SagaForge
   end
 end
 
-require "saga_forge/railtie" if defined?(Rails::Railtie)
+require "saga_forge/railtie"

@@ -55,18 +55,14 @@ module SagaForge
       # correlation key) happens later, in #resolve, and still aborts the
       # whole publish as required.
       #
-      # This should be unreachable in practice — the railtie force-compiles
-      # every registered class at boot/reload, so a broken saga crashes
-      # loudly long before any publish reaches here (§A.8). This rescue is
-      # defense-in-depth for non-railtie usage (the gem used standalone,
-      # without Rails booting it), so we still log loudly rather than skip
-      # in silence.
+      # Belt-and-braces: the railtie force-compiles every registered class at
+      # boot/reload (§A.8), so a broken saga crashes loudly long before any
+      # publish reaches here — but if one somehow does, log loudly rather than
+      # skip in silence.
       def handler_for(klass, event)
         klass.definition.handler_for(event)
       rescue Error => e
-        if defined?(Rails)
-          Rails.logger.error { "[saga_forge] #{klass.name} failed to compile its definition — skipped as recipient: #{e.class}: #{e.message}" }
-        end
+        Rails.logger.error { "[saga_forge] #{klass.name} failed to compile its definition — skipped as recipient: #{e.class}: #{e.message}" }
         nil
       end
     end
