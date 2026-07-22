@@ -83,12 +83,14 @@ module SagaForge
         meta["compensated"] = (meta["compensated"] || []) + [name.to_s]
         committed["__saga_forge"] = meta
         state.update!(context: committed, version: state.version + 1)
-        # Not rescued here: dedup is now the structural
-        # (saga_class, correlation_id, event_name) unique index, so a staged
-        # compensation publish CAN collide on fan-in. Savepoint tolerance for
-        # that collision is a later task — for now a RecordNotUnique here
-        # raises loudly.
-        inserted = facade.staged_publishes.map { |attrs| Event.create!(attrs) }
+        # Same savepoint-per-row tolerance as Runner#commit!: a compensation
+        # publishing to a recipient that already has that event no-ops at the
+        # structural unique index instead of aborting this commit.
+        inserted = facade.staged_publishes.filter_map do |attrs|
+          ApplicationRecord.transaction(requires_new: true) { Event.create!(attrs) }
+        rescue ActiveRecord::RecordNotUnique
+          nil
+        end
       end
       Array(inserted).each { |row| ExecutionJob.perform_later(row.id) }
       :continue

@@ -2,7 +2,7 @@ require "test_helper"
 
 class ExecutionCommitTest < SagaForge::TestCase
   def publish_rows(name, **payload)
-    SagaForge.publish(name, event_id: "t:#{name}:#{SecureRandom.hex(4)}", **payload)
+    SagaForge.publish(name, **payload)
   end
 
   def run_all(rows)
@@ -24,7 +24,7 @@ class ExecutionCommitTest < SagaForge::TestCase
   test "version conflict returns retry outcome, commits nothing, spares budgets" do
     state = SagaForge::State.create!(saga_class: "OrderSaga", correlation_id: "9",
       current_state: "awaiting_settlement", version: 3)
-    e = SagaForge::Event.create!(event_id: "v:1", saga_class: "OrderSaga", correlation_id: "9",
+    e = SagaForge::Event.create!(saga_class: "OrderSaga", correlation_id: "9",
       event_name: "payment_settled", payload: {})
     runner = SagaForge::Execution::Runner.new(e)
     # Simulate a concurrent commit landing between block run and commit:
@@ -41,14 +41,12 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_equal "awaiting_settlement", state.reload.current_state
   end
 
-  test "staged publish inserts only at commit, deterministic ids, delivered to recipient" do
+  test "staged publish inserts only at commit, delivered to recipient" do
     run_all(publish_rows(:order_placed, order_id: 7, shipment_ref: "S1", total: 10))
     e = publish_rows(:payment_settled, order_id: 7).first
     assert_equal [:done], SagaForge::Execution::Runner.new(e).call
-    staged = SagaForge::Event.where("event_id LIKE ?", "staged:#{e.id}:%")
+    staged = SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "7", event_name: "order_fulfilled")
     assert_equal 1, staged.count
-    assert_equal "FulfillmentListenerSaga", staged.first.saga_class
-    assert_equal "order_fulfilled", staged.first.event_name
     assert staged.first.pending?
   end
 
@@ -57,16 +55,16 @@ class ExecutionCommitTest < SagaForge::TestCase
     e = publish_rows(:payment_settled, order_id: 8).first
     SagaForge::Execution::Runner.new(e).call
     assert_equal [:done], SagaForge::Execution::Runner.new(e.reload).call
-    assert_equal 1, SagaForge::Event.where("event_id LIKE ?", "staged:#{e.id}:%").count
+    assert_equal 1, SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "8", event_name: "order_fulfilled").count
   end
 
   test "stay keeps state but bumps version; loop exits when condition clears" do
     run_all(publish_rows(:start_counting, counter_id: 1))
-    run_all(publish_rows(:tick, counter_id: 1))
+    run_all(publish_rows(:tick_a, counter_id: 1))
     s = StaySaga.find_by_correlation(1)
     assert_equal "counting", s.current_state
     assert_equal 2, s.version
-    run_all(publish_rows(:tick, counter_id: 1))
+    run_all(publish_rows(:tick_b, counter_id: 1))
     assert_equal "done_counting", StaySaga.find_by_correlation(1).current_state
   end
 
@@ -98,7 +96,7 @@ class ExecutionCommitTest < SagaForge::TestCase
     state_after = state_before.reload
     assert_equal "mid", state_after.current_state
     assert_equal version_before, state_after.version
-    assert_equal 0, SagaForge::Event.where("event_id LIKE ?", "staged:#{e.id}:%").count
+    assert_equal 2, SagaForge::Event.where(saga_class: "BadJumpSaga", correlation_id: "99").count
   end
 
   test "duplicate start race (concurrent create) returns retry outcome; exactly one state row exists" do
@@ -132,7 +130,28 @@ class ExecutionCommitTest < SagaForge::TestCase
     assert_equal "declined", s.context.dig("__saga_forge", "failure_reason")
     assert_equal "compensated", s.context.dig("__saga_forge", "target")
     assert e.reload.processed?
-    assert_equal 0, SagaForge::Event.where("event_id LIKE ?", "staged:#{e.id}:%").count
+    assert_equal 0, SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "12").count
     assert_enqueued_with(job: SagaForge::CompensationJob, args: [s.id])
+  end
+
+  test "staged insert colliding with an existing recipient row is benign; commit still succeeds, exactly one row survives" do
+    # Pre-create the exact (saga_class, correlation_id, event_name) row that
+    # OrderSaga's payment_settled handler is about to stage — as if it had
+    # already arrived from another producer, or a redelivery.
+    pre = publish_rows(:order_fulfilled, order_id: 14).first
+    assert pre.pending?
+
+    run_all(publish_rows(:order_placed, order_id: 14, shipment_ref: "S1", total: 10))
+    e = publish_rows(:payment_settled, order_id: 14).first
+    assert_equal [:done], SagaForge::Execution::Runner.new(e).call
+
+    state = OrderSaga.find_by_correlation(14)
+    assert_equal "awaiting_review", state.current_state
+    assert_equal 2, state.version
+    assert e.reload.processed?
+
+    rows = SagaForge::Event.where(saga_class: "FulfillmentListenerSaga", correlation_id: "14", event_name: "order_fulfilled")
+    assert_equal 1, rows.count
+    assert_equal pre.id, rows.first.id
   end
 end

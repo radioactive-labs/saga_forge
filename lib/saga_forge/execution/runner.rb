@@ -181,13 +181,17 @@ module SagaForge
           event.update!(status: :processed, saga_forge_state_id: state_row.id, error: nil)
 
           unless failing # fail! discards staged publishes (§A.1)
-            # Not rescued here: dedup is now the structural
-            # (saga_class, correlation_id, event_name) unique index, so a
-            # staged publish CAN collide with an already-persisted row or
-            # another staged row on fan-in. Savepoint tolerance for that
-            # collision is a later task — for now a RecordNotUnique here
-            # raises loudly.
-            @inserted_rows = facade.staged_publishes.map { |attrs| Event.create!(attrs) }
+            # Staged rows can collide benignly now that dedup is structural:
+            # two producers publishing the same event to the same recipient,
+            # or a redelivery, hit the (saga,correlation,event) unique index.
+            # Each insert gets its own savepoint so a duplicate rolls back to
+            # the savepoint instead of poisoning this commit's transaction
+            # (Postgres abort-on-error), exactly as Publisher#insert_row does.
+            @inserted_rows = facade.staged_publishes.filter_map do |attrs|
+              ApplicationRecord.transaction(requires_new: true) { Event.create!(attrs) }
+            rescue ActiveRecord::RecordNotUnique
+              nil
+            end
           end
         end
         state_row
