@@ -100,4 +100,37 @@ class ExecutionLifecycleTest < SagaForge::TestCase
     assert_equal [:done], SagaForge::Execution::Runner.new(e).call
     assert e.reload.processed?
   end
+
+  test "backward transition to an earlier visited state is rejected" do
+    perform_enqueued_jobs do
+      SagaForge.publish(:bw_started, id: "b1")
+      SagaForge.publish(:go_a, id: "b1")
+      SagaForge.publish(:go_b, id: "b1")
+    end
+    evt = SagaForge::Event.find_by(saga_class: "BackwardSaga", correlation_id: "b1", event_name: "go_b")
+    assert evt.failed?
+    assert_equal "SagaForge::ForwardOnlyError", evt.error["class"]
+    assert_equal 0, evt.attempts # no retry-budget consumption: a programming bug, not a transient failure
+    assert_equal "step_b", SagaForge::State.find_by(saga_class: "BackwardSaga", correlation_id: "b1").current_state
+  end
+
+  test "rejoin to a not-yet-visited state is allowed" do
+    perform_enqueued_jobs do
+      SagaForge.publish(:rj_started, id: "r1")
+      SagaForge.publish(:decide, id: "r1", take_detour: true)
+      SagaForge.publish(:detour_done, id: "r1")
+    end
+    assert_equal "mainline", SagaForge::State.find_by(saga_class: "RejoinSaga", correlation_id: "r1").current_state
+  end
+
+  test "self-transition to the current state is rejected" do
+    perform_enqueued_jobs do
+      SagaForge.publish(:sl_started, id: "s1")
+      SagaForge.publish(:again, id: "s1")
+    end
+    evt = SagaForge::Event.find_by(saga_class: "SelfLoopSaga", correlation_id: "s1", event_name: "again")
+    assert evt.failed?
+    assert_equal "SagaForge::ForwardOnlyError", evt.error["class"]
+    assert_equal "spin", SagaForge::State.find_by(saga_class: "SelfLoopSaga", correlation_id: "s1").current_state
+  end
 end

@@ -31,6 +31,7 @@ module SagaForge
   class UnknownStateError < Error; end
   class UnstagedPublishError < Error; end
   class ConcurrencyConflict < Error; end # internal: version race / duplicate create
+  class ForwardOnlyError < Error; end # transition/advance re-enters a visited state
 
   class << self
     def config = @config ||= Configuration.new
