@@ -1,0 +1,18 @@
+{
+  "planPath": "docs/superpowers/plans/2026-07-22-saga-forge-dag-structural-dedup.md",
+  "note": "Native task tools are unavailable in this environment; full task text lives in the plan .md. This file tracks status + dependencies only.",
+  "tasks": [
+    {"id": 1, "subject": "Task 1: Reduce stall_budget default", "status": "completed"},
+    {"id": 2, "subject": "Task 2: Schema — structural dedup key + persisted timestamps", "status": "completed"},
+    {"id": 3, "subject": "Task 3: Structural dedup in the publish path", "status": "completed", "blockedBy": [2]},
+    {"id": 4, "subject": "Task 4: Tolerant staged inserts (fan-in dedup)", "status": "completed", "blockedBy": [2, 3]},
+    {"id": 5, "subject": "Task 5: Remove stay", "status": "completed"},
+    {"id": 6, "subject": "Task 6: Forward-only DAG enforcement", "status": "completed", "blockedBy": [5]},
+    {"id": 7, "subject": "Task 7: Persisted timestamps wiring", "status": "completed", "blockedBy": [2]},
+    {"id": 8, "subject": "Task 8: Sweeper + retention use persisted fields", "status": "completed", "blockedBy": [7]},
+    {"id": 9, "subject": "Task 9: Dashboard — finalized vs active", "status": "completed", "blockedBy": [7]},
+    {"id": 10, "subject": "Task 10: Docs + full-suite green", "status": "completed"},
+    {"id": 11, "subject": "Task 11: Commit to Rails-required (remove standalone guards)", "status": "completed"}
+  ],
+  "lastUpdated": "2026-07-22"
+}
