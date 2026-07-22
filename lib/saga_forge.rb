@@ -3,8 +3,6 @@
 require "zeitwerk"
 require "active_record"
 require "active_job"
-require "digest"
-require "json"
 
 module SagaForge
   Loader = Zeitwerk::Loader.for_gem.tap do |loader|
@@ -43,8 +41,8 @@ module SagaForge
 
     # External publish entry point. Raises UnstagedPublishError inside
     # saga execution — use saga.publish there. (Publisher lands in Task 4.)
-    def publish(event_name, event_id: nil, **payload)
-      Publisher.publish(event_name, event_id: event_id, payload: payload)
+    def publish(event_name, **payload)
+      Publisher.publish(event_name, payload: payload)
     end
 
     # PK type for engine tables: explicit config → host generator config → Rails default.

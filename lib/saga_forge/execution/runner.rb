@@ -67,8 +67,7 @@ module SagaForge
           definition: definition,
           correlation_id: event.correlation_id,
           current_state: current,
-          context: context,
-          source_event_id: event.id
+          context: context
         )
 
         begin
@@ -182,13 +181,12 @@ module SagaForge
           event.update!(status: :processed, saga_forge_state_id: state_row.id, error: nil)
 
           unless failing # fail! discards staged publishes (§A.1)
-            # RecordNotUnique here is unreachable by design, not defensively
-            # rescued: staged event_ids are namespaced by THIS run's own
-            # source event id ("staged:#{event.id}:#{seq}"), and the
-            # processed-skip at Runner#call's entry means a source event
-            # that already committed can never re-run its block and re-stage
-            # those same ids. A raise here is a loud invariant violation on
-            # purpose — do not add a rescue.
+            # Not rescued here: dedup is now the structural
+            # (saga_class, correlation_id, event_name) unique index, so a
+            # staged publish CAN collide with an already-persisted row or
+            # another staged row on fan-in. Savepoint tolerance for that
+            # collision is a later task — for now a RecordNotUnique here
+            # raises loudly.
             @inserted_rows = facade.staged_publishes.map { |attrs| Event.create!(attrs) }
           end
         end

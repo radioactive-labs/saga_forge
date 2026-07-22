@@ -11,12 +11,11 @@ module SagaForge
       # just a plain method call with no control-flow effect.
       attr_reader :correlation_id, :current_state, :context, :outcome, :staged_publishes
 
-      def initialize(definition:, correlation_id:, current_state:, context:, source_event_id:)
+      def initialize(definition:, correlation_id:, current_state:, context:)
         @definition = definition
         @correlation_id = correlation_id
         @current_state = current_state
         @context = context
-        @source_event_id = source_event_id
         @staged_publishes = []
         @outcome = nil
       end
@@ -46,11 +45,7 @@ module SagaForge
       # MissingCorrelationError surfaces under the block's retry policy),
       # hold fully-built rows; the Runner inserts them inside its commit.
       def publish(event_name, **payload)
-        rows = Router.resolve(event_name, payload)
-        seq = @publish_seq = (@publish_seq || 0) + 1
-        rows.each do |attrs|
-          @staged_publishes << attrs.merge(event_id: "staged:#{@source_event_id}:#{seq}")
-        end
+        @staged_publishes.concat(Router.resolve(event_name, payload))
         nil
       end
     end

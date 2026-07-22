@@ -55,8 +55,7 @@ module SagaForge
       facade = Execution::CompensationFacade.new(
         correlation_id: state.correlation_id,
         current_state: state.current_state,
-        context: context,
-        id_prefix: "staged:comp:#{state.id}:#{name}"
+        context: context
       )
 
       begin
@@ -84,10 +83,11 @@ module SagaForge
         meta["compensated"] = (meta["compensated"] || []) + [name.to_s]
         committed["__saga_forge"] = meta
         state.update!(context: committed, version: state.version + 1)
-        # Staged event_ids are namespaced by state id + compensation name, and
-        # a completed name is never re-run (the compensated-append commits
-        # atomically with these inserts) — RecordNotUnique here is an
-        # invariant violation and should raise loudly, so no rescue.
+        # Not rescued here: dedup is now the structural
+        # (saga_class, correlation_id, event_name) unique index, so a staged
+        # compensation publish CAN collide on fan-in. Savepoint tolerance for
+        # that collision is a later task — for now a RecordNotUnique here
+        # raises loudly.
         inserted = facade.staged_publishes.map { |attrs| Event.create!(attrs) }
       end
       Array(inserted).each { |row| ExecutionJob.perform_later(row.id) }

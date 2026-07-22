@@ -7,13 +7,13 @@ class ModelsTest < SagaForge::TestCase
 
   test "event enum and dedup index" do
     s = build_state
-    SagaForge::Event.create!(event_id: "e1", saga_class: "DemoSaga", correlation_id: "1",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "1",
       event_name: "went", payload: {a: 1}, state: s)
     assert_raises(ActiveRecord::RecordNotUnique) do
-      SagaForge::Event.create!(event_id: "e1", saga_class: "DemoSaga", correlation_id: "1",
+      SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "1",
         event_name: "went", payload: {a: 1})
     end
-    SagaForge::Event.create!(event_id: "e1", saga_class: "OtherSaga", correlation_id: "1",
+    SagaForge::Event.create!(saga_class: "OtherSaga", correlation_id: "1",
       event_name: "went", payload: {a: 1})
   end
 
@@ -21,9 +21,9 @@ class ModelsTest < SagaForge::TestCase
     healthy = build_state(corr: "1")
     stalled = build_state(corr: "2")
     suspended = build_state(corr: "3")
-    SagaForge::Event.create!(event_id: "s1", saga_class: "DemoSaga", correlation_id: "2",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "2",
       event_name: "early", status: :stalled, state: stalled)
-    SagaForge::Event.create!(event_id: "f1", saga_class: "DemoSaga", correlation_id: "3",
+    SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "3",
       event_name: "boom", status: :failed, state: suspended)
 
     assert_equal [stalled.id], SagaForge::State.stalled.ids
@@ -33,9 +33,9 @@ class ModelsTest < SagaForge::TestCase
 
   test "history is ledger ordered" do
     s = build_state
-    e1 = SagaForge::Event.create!(event_id: "a", saga_class: "DemoSaga", correlation_id: "1",
+    e1 = SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "1",
       event_name: "one", state: s, created_at: 2.minutes.ago)
-    e2 = SagaForge::Event.create!(event_id: "b", saga_class: "DemoSaga", correlation_id: "1",
+    e2 = SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "1",
       event_name: "two", state: s, created_at: 1.minute.ago)
     assert_equal [e1.id, e2.id], s.history.ids
   end
@@ -49,7 +49,7 @@ class ModelsTest < SagaForge::TestCase
   test "json columns default to empty hashes on every adapter" do
     s = SagaForge::State.create!(saga_class: "DemoSaga", correlation_id: "d1", current_state: "waiting")
     assert_equal({}, s.reload.context)
-    e = SagaForge::Event.create!(event_id: "def1", saga_class: "DemoSaga", correlation_id: "d1", event_name: "went")
+    e = SagaForge::Event.create!(saga_class: "DemoSaga", correlation_id: "d1", event_name: "went")
     assert_equal({}, e.reload.payload)
     assert_equal({}, e.reload.retry_budgets)
     assert_nil e.reload.error
