@@ -13,6 +13,11 @@ SagaForge.configure do |config|
   # config.stall_budget   = 3           # spins before an event parks as stalled
   # config.sweep_interval = 30.seconds  # SweeperJob cadence (schedule it yourself)
   # config.retention      = 90.days     # processed-event pruning window (RetentionJob)
-  # config.job_queue      = :sagas
+  # config.job_queue      = :default     # hot path: execution, compensation, timeout.
+  #                                        At scale, dedicate a queue (e.g. :sagas) with
+  #                                        its own worker — but then you MUST run a worker
+  #                                        for it, or sagas silently never process.
+  # config.maintenance_queue = :default  # sweeper + retention; defaults to job_queue.
+  #                                        Point elsewhere to isolate recovery/pruning.
   # config.primary_key_type = :uuid     # engine tables' PK type (default: host app convention)
 end

@@ -493,7 +493,8 @@ What SagaForge actually promises, so you know what to build on:
 | `stall_budget` | `3` | Spins before an early event parks as `stalled`. |
 | `sweep_interval` | `30.seconds` | Age at which the sweeper considers something stranded. |
 | `retention` | `90.days` | Age past which processed events of terminal sagas are pruned. |
-| `job_queue` | `:sagas` | ActiveJob queue for all SagaForge jobs. |
+| `job_queue` | `:default` | ActiveJob queue for hot-path jobs (execution, compensation, timeout). At scale, point it at a dedicated queue (e.g. `:sagas`) with its own worker — but then you must run a worker for that queue, or sagas silently never process. |
+| `maintenance_queue` | `job_queue` | Queue for housekeeping jobs (sweeper, retention). Defaults to `job_queue`; set it to isolate recovery/pruning on a separate, typically lower-priority, queue. |
 | `database` | `nil` | Named database for SagaForge's tables (see below). |
 | `connects_to` | `nil` | Raw `connects_to` hash for custom roles/shards; wins over `database`. |
 | `primary_key_type` | `nil` | Primary key type for SagaForge's tables (see below). |

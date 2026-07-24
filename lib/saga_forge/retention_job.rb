@@ -5,7 +5,7 @@ module SagaForge
   # atomically at commit (no constantize — robust to a since-deleted saga
   # class, which used to leak those rows past retention forever).
   class RetentionJob < ActiveJob::Base
-    queue_as { SagaForge.config.job_queue }
+    queue_as { SagaForge.config.maintenance_queue }
 
     # See ExecutionJob::CONCURRENCY_KEY for why this is a constant.
     CONCURRENCY_KEY = "SagaForge::Retention"

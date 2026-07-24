@@ -4,7 +4,7 @@ module SagaForge
   # by ExecutionJob's processed-skip/halt/stall checks. Host-scheduled
   # (config/recurring.yml) at config.sweep_interval cadence.
   class SweeperJob < ActiveJob::Base
-    queue_as { SagaForge.config.job_queue }
+    queue_as { SagaForge.config.maintenance_queue }
 
     # A fixed singleton key, not per-instance: this is one recurring job, not
     # one lock per saga — an over-long sweep must not overlap the next tick.
