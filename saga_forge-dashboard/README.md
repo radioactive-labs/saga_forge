@@ -21,9 +21,35 @@ Early release: the UI and config API may change before `1.0`.
 
 ## Screenshots
 
-Not captured yet. The plan is to run `bin/dev` against the seeded preview
-fixtures (every saga health state, across two saga classes) and screenshot
-each page from there, the same way the core gem's site does.
+Captured from the seeded preview (`bin/dev`), which builds every saga health
+state across two saga classes. There is also a [visual
+tour](https://radioactive-labs.github.io/saga_forge/dashboard.html) on the
+site.
+
+| Overview |
+| --- |
+| [![Overview](docs/screenshots/overview.png)](docs/screenshots/overview.png) |
+| A fleet summary across every saga class: total, then **stalled / suspended / compensating** at a glance, with one row per class broken down by current state. Every count drills into the matching filtered list. |
+
+| Saga list | Saga detail |
+| --- | --- |
+| [![Saga list](docs/screenshots/sagas.png)](docs/screenshots/sagas.png) | [![Saga detail](docs/screenshots/saga-detail.png)](docs/screenshots/saga-detail.png) |
+| One class at a time: filter chips for stalled / suspended / compensating / finalized / active, a correlation-ID prefix search, keyset pagination. | The event ledger as a timeline — every event this instance received, in order, with status and attempts — over the saga's live context, with operator actions in the header. |
+
+| Compensation |
+| --- |
+| [![Compensation](docs/screenshots/compensating.png)](docs/screenshots/compensating.png) |
+| When a step fails, what already committed unwinds in reverse. Here `release_stock` ran but `refund` exhausted its retries mid-rollback: the banner names where it's stuck, the timeline inlines the error on the failed compensation, and the Compensation panel lists the compensated steps most-recent-first. |
+
+| State-machine graph |
+| --- |
+| [![State-machine graph](docs/screenshots/definition-graph.png)](docs/screenshots/definition-graph.png) |
+| A forward-only DAG of the saga's states, parsed from the class (never executed). Solid edges are the event-handler chain; dashed edges are best-effort `transition_to` jumps detected in the handler source. Node status paints on when viewed for a specific run. |
+
+| Stalled | Suspended |
+| --- | --- |
+| [![Stalled sagas](docs/screenshots/stalled.png)](docs/screenshots/stalled.png) | [![Suspended sagas](docs/screenshots/suspended.png)](docs/screenshots/suspended.png) |
+| Instances with an event parked in `stalled`: it exhausted its retry budget and is waiting to be retried. Per-class **Retry all stalled** re-enqueues the parked work in one background sweep. | Poison-pill isolation: an event that ran out of retries and landed in `failed` halts its one instance, not the fleet. Each row names the failed event and error; **Resume all** re-fires them after the fix. |
 
 ## Installation
 

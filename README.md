@@ -1,5 +1,6 @@
 # SagaForge
 
+[![Gem Version](https://badge.fury.io/rb/saga_forge.svg)](https://badge.fury.io/rb/saga_forge)
 [![CI](https://github.com/radioactive-labs/saga_forge/actions/workflows/main.yml/badge.svg)](https://github.com/radioactive-labs/saga_forge/actions/workflows/main.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-green.svg)](LICENSE)
 
@@ -19,8 +20,8 @@ early, commits each step atomically, and when a step declares failure, unwinds
 the steps that already committed, in reverse order.
 
 Two tables, a handful of jobs, plain Ruby classes, and no separate server to
-run. A management dashboard, in the style of ChronoForge's, is planned as a
-companion gem. Works with any ActiveJob backend on Rails 7.1+.
+run. A companion [management dashboard](#dashboard) ships as a separate gem.
+Works with any ActiveJob backend on Rails 7.1+.
 
 ### 30-second tour
 
@@ -107,6 +108,31 @@ it skips what you already have, so it is safe to run on every upgrade.
 Saga classes live in `app/sagas/`. SagaForge eager-loads that directory on
 each boot and code reload, so every saga is registered with the event router
 even in development, where Rails would otherwise load classes lazily.
+
+## Dashboard
+
+SagaForge ships a mountable management dashboard for visibility and recovery:
+a fleet overview, the per-saga event ledger as a timeline, a compensation
+timeline that shows what unwound (and where a rollback got stuck), a parsed
+state-machine graph, and one-click resume / compensate / cancel. It is a
+separate gem, `saga_forge-dashboard`, so the core stays dependency-light.
+
+```ruby
+# Gemfile
+gem "saga_forge-dashboard"
+```
+
+```ruby
+# config/routes.rb
+mount SagaForge::Dashboard::Engine => "/saga_forge"
+```
+
+[![SagaForge dashboard: the saga list](saga_forge-dashboard/docs/screenshots/sagas.png)](saga_forge-dashboard/README.md#screenshots)
+
+[![Compensation timeline: a rollback stuck on refund](saga_forge-dashboard/docs/screenshots/compensating.png)](saga_forge-dashboard/README.md#screenshots)
+
+See [`saga_forge-dashboard`](saga_forge-dashboard/README.md) for setup,
+authentication, configuration, and [more screenshots](saga_forge-dashboard/README.md#screenshots).
 
 ## Defining a saga
 
