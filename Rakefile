@@ -10,6 +10,6 @@ require "standard/rake"
 
 task default: %i[test standard]
 
-# Neutralize bundler's `rake release` footgun (release flow comes with the
-# dashboard-phase tooling; until then, releases are manual and deliberate).
-Rake::Task["release"].clear if Rake::Task.task_defined?("release")
+# Release tasks (release:core:*, release:dashboard:*). Loaded after
+# bundler/gem_tasks so it can neutralize the bare `rake release` footgun.
+Dir.glob(File.expand_path("lib/tasks/*.rake", __dir__)).sort.each { |f| load f }

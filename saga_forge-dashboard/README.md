@@ -182,12 +182,23 @@ bundle exec rake   # test + standard
 
 ## Releasing
 
-The monorepo-root release tooling (`release:core:*`) hasn't landed yet, so
-there is no `release:dashboard:*` task in this repo yet either. Once it does,
-releasing the dashboard will use `release:dashboard:*` with the tag prefix
-`saga_forge-dashboard-v`, and its `build` step will recompile
-`dashboard.css` first (`bundle exec rake tailwind:build`) so a release never
-ships a stale stylesheet.
+The dashboard is released from the monorepo root with `release:dashboard:*`
+(defined in `../lib/tasks/release.rake`), which tags with the prefix
+`saga_forge-dashboard-v`:
+
+```bash
+cd ..                             # monorepo root
+rake release:dashboard:version    # show the next version (conventional commits)
+rake release:dashboard:prepare    # bump + changelog + recompile dashboard.css (uncommitted)
+git diff                          # review
+rake release:dashboard:publish    # commit, build + push gem, tag + push → CI cuts the Release
+```
+
+Release **core before dashboard** — bump the dashboard's `saga_forge` floor
+first if it should require the new core version. `prepare` recompiles
+`dashboard.css` (`bundle exec rake tailwind:build`) so a release never ships a
+stale stylesheet. See the header of `../lib/tasks/release.rake` for the full
+flow.
 
 ## License
 
