@@ -1,3 +1,7 @@
 ruby_version: 3.2
 ignore:
   - "test/internal/**/*"
+  # Dev-only demo seed with intentionally mixed hash-key styles (real string
+  # keys in the persisted JSON). The dashboard's own .standard.yml ignores it
+  # too; mirror that here so the root run doesn't lint a nested gem's demo file.
+  - "saga_forge-dashboard/config.ru"
