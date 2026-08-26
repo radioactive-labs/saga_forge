@@ -2,16 +2,18 @@ require "test_helper"
 
 # Solid Queue coverage (Task 5 review deferral): the job classes declare
 # `limits_concurrency key: ...` under `if defined?(SolidQueue)`, but the test
-# env loads solid_queue with `require: false` (see Gemfile) — requiring it
-# eagerly would run its `SolidQueue::Engine` initializers only if they fire
-# before Combustion boots the test app; requiring it lazily, after boot,
-# leaves ActiveJob::Base without the ConcurrencyControls extension solid_queue
-# normally mixes in, so `defined?(SolidQueue)` staying false in-suite is
-# expected, not a gap. Each job extracts its key logic into a CONCURRENCY_KEY
-# constant (lambda or plain string) that IS what limits_concurrency is handed
-# when the guard passes — testing the constant directly exercises the exact
-# same object Solid Queue would call, with no reliance on the adapter being
-# booted.
+# env loads solid_queue with `require: false` (see Gemfile) and Combustion has
+# already booted, so `SolidQueue::Engine`'s initializer never mixes
+# ConcurrencyControls into ActiveJob::Base for the base suite. Each job extracts
+# its key logic into a CONCURRENCY_KEY constant (lambda or plain string) that IS
+# what limits_concurrency is handed when the guard passes — testing the constant
+# directly exercises the exact same object Solid Queue would call, with no
+# reliance on the adapter being booted.
+#
+# For the complementary check that feeds these constants through the REAL
+# ActiveJob::ConcurrencyControls macro (group/key joining, arg flow), see
+# test/solid_queue_integration_test.rb, which requires solid_queue post-boot and
+# probes it in isolation.
 class ConcurrencyControlsTest < SagaForge::TestCase
   test "ExecutionJob::CONCURRENCY_KEY resolves a found row to a per-saga lock, else a shared miss key" do
     e = SagaForge::Event.create!(saga_class: "OrderSaga",
