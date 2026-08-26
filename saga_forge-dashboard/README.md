@@ -21,8 +21,7 @@ Early release: the UI and config API may change before `1.0`.
 
 ## Screenshots
 
-Captured from the seeded preview (`bin/dev`), which builds every saga health
-state across two saga classes. There is also a [visual
+The dashboard, page by page — there's also a [visual
 tour](https://radioactive-labs.github.io/saga_forge/dashboard.html) on the
 site.
 
