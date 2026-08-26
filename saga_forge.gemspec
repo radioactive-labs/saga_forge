@@ -11,13 +11,15 @@ Gem::Specification.new do |spec|
   spec.license = "MIT"
   spec.required_ruby_version = ">= 3.2.2"
 
+  spec.metadata["allowed_push_host"] = "https://rubygems.org"
   spec.metadata["homepage_uri"] = spec.homepage
   spec.metadata["source_code_uri"] = spec.homepage
+  spec.metadata["changelog_uri"] = "#{spec.homepage}/blob/main/CHANGELOG.md"
 
   spec.files = Dir.chdir(__dir__) do
     `git ls-files -z`.split("\x0").reject do |f|
       (f == File.basename(__FILE__)) ||
-        f.start_with?("bin/", "test/", "spec/", "features/", ".git", ".github", "appraisal", "Appraisals", "gemfiles/", "docs/", "site/", "saga_forge-dashboard/", "Gemfile", "Rakefile", ".standard.yml")
+        f.start_with?("bin/", "test/", "spec/", "features/", ".git", ".github", "appraisal", "Appraisals", "gemfiles/", "docs/", "site/", "saga_forge-dashboard/", "lib/tasks/", "cliff.toml", "Gemfile", "Rakefile", ".standard.yml")
     end
   end
   spec.require_paths = ["lib"]
